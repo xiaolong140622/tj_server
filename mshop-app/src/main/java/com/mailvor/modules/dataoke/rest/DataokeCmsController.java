@@ -24,6 +24,10 @@ import java.util.TreeMap;
 
 import static com.mailvor.modules.tk.constants.TkConstants.*;
 
+/**
+ * 大淘客cms接口控制器
+ * @author mailvor
+ */
 @RestController
 @RequestMapping("/cms")
 @Slf4j
@@ -85,6 +89,12 @@ public class DataokeCmsController {
         return dataObj;
     }
 
+    /**
+     * 每天必买
+     *
+     * @return the object
+     * @throws URISyntaxException the uri syntax exception
+     */
     @GetMapping(value = "/everyone/buy")
     public Object everyoneBuy() throws URISyntaxException {
         Object dataObj = redisUtils.get(HOME_DATA_EVERY);
@@ -108,6 +118,11 @@ public class DataokeCmsController {
         return dataObj;
     }
 
+    /**
+     * 热搜词
+     *
+     * @return the json object
+     */
     @GetMapping(value = "/hot-words")
     public JSONObject hotWords() {
         //https://openapi.dataoke.com/api/etc/search/list-hot-words
@@ -116,6 +131,11 @@ public class DataokeCmsController {
                         String.format("%s/etc/search/list-hot-words?version=v1.0.0&appKey=612bcfe884763&sign=8beae01e0da745fc62fcc954fafa2944",
                         API_PREFIX), JSONObject.class);
     }
+    /**
+     * 排行榜分类
+     *
+     * @return the json object
+     */
     @GetMapping(value = "/ranking/cate")
     public JSONObject rankingCate() {
         JSONObject data = (JSONObject) redisUtils.get(HOME_DATA_TOP_CATE);
@@ -129,6 +149,14 @@ public class DataokeCmsController {
         return data;
     }
 
+    /**
+     * 大牌商品列表
+     *
+     * @param pageId   the page id
+     * @param pageSize the page size
+     * @param params   the params
+     * @return the object
+     */
 
     @GetMapping(value = "/big/list")
     public Object goodsBigList(@RequestParam(defaultValue = "1") Integer pageId,
@@ -174,18 +202,37 @@ public class DataokeCmsController {
      *
      * @return the object
      */
+    /**
+     * 部分页面分类
+     *
+     * @param id the id
+     * @return the object
+     */
     @GetMapping(value = "/cate")
     public Object pickCate(String id) {
         String url = CMS_PREFIX + "/column-conf?preview=&id="+ id;
         return restTemplate.getForObject(url, JSONObject.class);
     }
 
+    /**
+     * 检查分类
+     *
+     * @return the json object
+     */
     @GetMapping(value = "/check/cate")
     public JSONObject checkCate() {
         return restTemplate
                 .getForObject(CHECK_CATE, JSONObject.class);
     }
 
+    /**
+     * 品牌商品列表
+     *
+     * @param pageId   the page id
+     * @param pageSize the page size
+     * @param brandId  the brand id
+     * @return the json object
+     */
     @GetMapping(value = "/brand/goods/list")
     public JSONObject brandGoodsList(Integer pageId, Integer pageSize, String brandId) {
         return restTemplate
@@ -193,17 +240,35 @@ public class DataokeCmsController {
                         "%s/delanys/brand/get-goods-list?version=v1.0.0&pageId=%s&pageSize=%s&brandId=%s&appKey=%s",
                         API_PREFIX, pageId, pageSize, brandId, "612bcfe884763"), JSONObject.class);
     }
+    /**
+     * 9块9分类
+     *
+     * @return the json object
+     */
     @GetMapping(value = "/nine/cate")
     public JSONObject nineCate() {
         return restTemplate
                 .getForObject(NINE_CATE, JSONObject.class);
     }
+    /**
+     * 9块9榜单
+     *
+     * @return the json object
+     */
     @GetMapping(value = "/nine/top")
     public JSONObject nineTOP() {
         return restTemplate
                 .getForObject(NINE_TOP, JSONObject.class);
     }
 
+    /**
+     * 9块9商品列表
+     *
+     * @param pageId the page id
+     * @param pageSize the page size
+     * @param cid the cid
+     * @return the json object
+     */
     @GetMapping(value = "/nine/list")
     public JSONObject nineList(Integer pageId, Integer pageSize, String cid) {
         return restTemplate

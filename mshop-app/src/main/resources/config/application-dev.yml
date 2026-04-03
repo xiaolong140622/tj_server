@@ -5,9 +5,9 @@ spring:
     druid:
       # todo 主库数据源
       master:
-        url: jdbc:mysql://xx.xx.32.56:3306/mshop?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8
-        username: mshop
-        password: xxxx
+        url: jdbc:mysql://39.106.28.224:3306/rebate?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8
+        username: root
+        password: Yzk@2025
       # 从库数据源
       slave:
         # 从数据源开关/默认关闭
@@ -47,10 +47,10 @@ spring:
           config:
             multi-statement-allow: true
   redis:
-    host: xx.xxx.114.157 # todo Redis服务器地址
-    database: 2 # Redis数据库索引（默认为0）
-    port: 6379 # Redis服务器连接端口
-    password: xxxx # todo Redis服务器连接密码（默认为空）
+    host: 39.106.28.224 # todo Redis服务器地址
+    database: 6 # Redis数据库索引（默认为0）
+    port: 6378 # Redis服务器连接端口
+    password: 123456 # todo Redis服务器连接密码（默认为空）
     jedis:
       pool:
         max-active: 8 # 连接池最大连接数（使用负值表示没有限制）
@@ -75,7 +75,7 @@ single:
 
 #是否开启 swagger-ui
 swagger:
-  enabled: true
+  enabled: false
   title: mshop商城移动端API
   serverUrl: http://localhost:8009
   version: 3.3
@@ -88,13 +88,13 @@ file:
   maxSize: 100
   avatarMaxSize: 5
 
-# todo 大淘客key
+# todo 大淘客 key
 dataoke:
-  key: xxxxxxeb094a5
-  secret: xxxxxxcee4a4b9579561ec0722cbd734
+  key: 69cb858ad9dbf
+  secret: daac5e4f8d0107fc69c565b1f66dcd96
 # todo 好单库key
 haodanku:
-  key: xxxxxxE08805
+  key: 8842557FF780
   waimaiKey: xxxxxxE08805
   # todo 好单库付费key
   vip:
@@ -155,7 +155,7 @@ jd:
   siteId: 41xxxxxx62
   unionId: 10xxxxxx54
   #每年替换一次
-  key: e420xxxxxxb9f8e29ebdee4bfd747b073171892939124xxxxxx252917d117dcc8d858692b111d138
+  key: e7529f83b9008cc04b7096124bbb6291487c4375b4ddde98edbd699d35ce613ef17722b02eba8f33
 # todo 闪验一键登录 注册地址https://www.chuanglan.com/control/login
 shanyan:
   android:

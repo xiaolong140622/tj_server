@@ -322,18 +322,65 @@ public class DataokeService {
     public JSONObject rankingList(RankingListParam param) {
         TreeMap<String, Object> paraMap = JSON.parseObject(JSON.toJSONString(param), mapTypeReference);
         String data = getData(DataokeApi.TB_RANK_LIST.getUrl(), DataokeApi.TB_RANK_LIST.getVersion(), paraMap);
-        JSONObject jsonObject = JSON.parseObject(data);
-        JSONArray resData = jsonObject.getJSONArray("data");
-        List list = resData.stream().filter(e->{
-            JSONObject obj = (JSONObject) e;
-            String title = obj.getString("title");
-            if(hasWord(title)){
-                return false;
-            }
-            return true;
-        }).collect(Collectors.toList());
+        JSONObject jsonObject = parseJsonObject(data, "大淘客榜单");
+        JSONArray resData = normalizeArray(jsonObject.get("data"));
+        if(resData == null) {
+            log.warn("大淘客榜单 data 节点不是数组，request={}, response={}", JSON.toJSONString(param), data);
+            jsonObject.put("data", new JSONArray());
+            return jsonObject;
+        }
+        JSONArray list = new JSONArray();
+        list.addAll(resData.stream()
+                .filter(JSONObject.class::isInstance)
+                .map(JSONObject.class::cast)
+                .filter(obj -> !hasWord(obj.getString("title")))
+                .collect(Collectors.toList()));
         jsonObject.put("data", list);
         return jsonObject;
+    }
+
+    private JSONObject parseJsonObject(String data, String apiName) {
+        JSONObject fallback = new JSONObject();
+        fallback.put("data", new JSONArray());
+        if(StringUtils.isBlank(data)) {
+            log.warn("{} 接口返回为空", apiName);
+            return fallback;
+        }
+        try {
+            Object parsed = JSON.parse(data);
+            if(parsed instanceof JSONObject) {
+                return (JSONObject) parsed;
+            }
+            if(parsed instanceof JSONArray) {
+                fallback.put("raw", parsed);
+                log.warn("{} 接口返回数组而不是对象: {}", apiName, data);
+                return fallback;
+            }
+        } catch (Exception e) {
+            log.warn("解析 {} 接口返回失败: {}", apiName, data, e);
+        }
+        fallback.put("msg", data);
+        return fallback;
+    }
+
+    private JSONArray normalizeArray(Object data) {
+        if(data instanceof JSONArray) {
+            return (JSONArray) data;
+        }
+        if(data == null) {
+            return null;
+        }
+        if(data instanceof JSONObject) {
+            JSONArray array = new JSONArray();
+            array.add(data);
+            return array;
+        }
+        try {
+            return JSON.parseArray(JSON.toJSONString(data));
+        } catch (Exception e) {
+            log.warn("转换数组节点失败: {}", data, e);
+            return null;
+        }
     }
     public JSONObject dyGoodsSearch(GoodsSearchDyParam param) {
         if(StringUtils.isNotBlank(param.getTitle())) {
