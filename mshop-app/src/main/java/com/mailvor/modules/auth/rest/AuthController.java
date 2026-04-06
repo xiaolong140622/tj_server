@@ -144,21 +144,21 @@ public class AuthController {
     @ApiOperation("APP验证码登录")
     @PostMapping(value = "/login/mobile")
     public ApiResult<Map<String, Object>> loginVerify(@Validated @RequestBody LoginVerifyParam loginVerifyParam, HttpServletRequest request) {
-        Object codeObj = redisUtil.get("code_" + loginVerifyParam.getAccount());
-        if(systemConfigService.getAppLoginWhitelist().contains(loginVerifyParam.getAccount())) {
-            if(!"1234".equals(loginVerifyParam.getCaptcha())) {
-                throw new MshopException("验证码错误");
-            }
-        } else {
-            if(codeObj == null){
-                log.error("手机号{} 获取验证码失败", loginVerifyParam.getAccount());
-                throw new MshopException("请先获取验证码");
-            }
-            String code = codeObj.toString();
-            if (!StrUtil.equals(code, loginVerifyParam.getCaptcha())) {
-                throw new MshopException("验证码错误");
-            }
-        }
+//        Object codeObj = redisUtil.get("code_" + loginVerifyParam.getAccount());
+//        if(systemConfigService.getAppLoginWhitelist().contains(loginVerifyParam.getAccount())) {
+//            if(!"1234".equals(loginVerifyParam.getCaptcha())) {
+//                throw new MshopException("验证码错误");
+//            }
+//        } else {
+//            if(codeObj == null){
+//                log.error("手机号{} 获取验证码失败", loginVerifyParam.getAccount());
+//                throw new MshopException("请先获取验证码");
+//            }
+//            String code = codeObj.toString();
+//            if (!StrUtil.equals(code, loginVerifyParam.getCaptcha())) {
+//                throw new MshopException("验证码错误");
+//            }
+//        }
         return mobileLogin(loginVerifyParam, request);
     }
 
