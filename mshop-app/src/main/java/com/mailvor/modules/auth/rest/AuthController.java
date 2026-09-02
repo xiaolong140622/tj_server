@@ -55,6 +55,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static com.mailvor.config.PayConfig.PAY_NAME;
@@ -104,6 +105,37 @@ public class AuthController {
     @ApiOperation(value = "根据手机号查询用户状态", notes = "根据手机号查询用户状态")
     public ApiResult<MwUser> authPhone(@PathVariable String phone) {
         return ApiResult.ok(authService.authPhone(phone)).setMsg("获取成功");
+    }
+
+    /**
+     * 小程序登录：wx.login 的 code 换取 JWT
+     */
+    @PostMapping("/wxapp/login")
+    @ApiOperation(value = "小程序登录", notes = "小程序登录")
+    public ApiResult<Map<String, Object>> wxappLogin(@Validated @RequestBody WxMiniLoginParam param,
+                                                     HttpServletRequest request) {
+        MwUser user = authService.wechatMiniLogin(param.getCode());
+
+        String token = JwtToken.makeToken(user.getUid(), user.getUsername());
+        // 保存在线信息，@AuthCheck 接口(如 /wxapp/binding)校验依赖此记录
+        authService.save(user, token, request);
+        if (singleLogin) {
+            //踢掉之前已经登录的token
+            authService.checkLoginOnUser(user.getUsername(), token);
+        }
+
+        Map<String, Object> userInfo = new LinkedHashMap<>(4);
+        userInfo.put("uid", user.getUid());
+        userInfo.put("nickname", user.getNickname());
+        userInfo.put("avatar", user.getAvatar());
+        userInfo.put("phone", user.getPhone());
+
+        Map<String, Object> data = new LinkedHashMap<>(3);
+        data.put("token", token);
+        data.put("userInfo", userInfo);
+        data.put("needBindPhone", StrUtil.isBlank(user.getPhone()));
+
+        return ApiResult.ok(data).setMsg("登录成功");
     }
 
     @ApiOperation("H5登录授权")
