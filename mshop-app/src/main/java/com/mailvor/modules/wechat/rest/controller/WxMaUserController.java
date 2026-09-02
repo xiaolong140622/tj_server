@@ -13,10 +13,13 @@ import com.mailvor.constant.ShopConstants;
 import com.mailvor.modules.logging.aop.log.AppLog;
 import com.mailvor.common.bean.LocalUser;
 import com.mailvor.common.interceptor.AuthCheck;
+import com.mailvor.common.util.JwtToken;
+import com.mailvor.modules.services.AuthService;
 import com.mailvor.modules.user.domain.MwUser;
 import com.mailvor.modules.user.service.MwUserService;
 import com.mailvor.modules.wechat.rest.param.BindPhoneParam;
 import com.mailvor.modules.wechat.rest.param.WxPhoneParam;
+import com.mailvor.modules.wechat.rest.param.WxLoginParam;
 import com.mailvor.modules.mp.config.WxMaConfiguration;
 import com.mailvor.utils.RedisUtil;
 import com.mailvor.utils.RedisUtils;
@@ -25,11 +28,13 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -44,6 +49,39 @@ public class WxMaUserController {
 
     private final MwUserService userService;
     private final RedisUtils redisUtils;
+    private final AuthService authService;
+
+    @Value("${single.login}")
+    private Boolean singleLogin;
+
+    @AppLog(value = "小程序登录", type = 1)
+    @PostMapping("/wxapp/login")
+    @ApiOperation(value = "小程序登录", notes = "小程序登录(wx.login code 换 JWT)")
+    public ApiResult<Map<String,Object>> login(@Validated @RequestBody WxLoginParam param, HttpServletRequest request) {
+        //code -> jscode2session -> 建/匹配用户，并写入 session_key 到 Redis
+        MwUser user = authService.wechatMaLogin(param.getCode());
+
+        String token = JwtToken.makeToken(user.getUid(), user.getUsername());
+        //保存在线信息
+        authService.save(user, token, request);
+        if (Boolean.TRUE.equals(singleLogin)) {
+            //踢掉之前已经登录的token
+            authService.checkLoginOnUser(user.getUsername(), token);
+        }
+
+        Map<String,Object> userInfo = new LinkedHashMap<>();
+        userInfo.put("uid", user.getUid());
+        userInfo.put("nickname", user.getNickname());
+        userInfo.put("avatar", user.getAvatar());
+        userInfo.put("phone", user.getPhone());
+
+        Map<String,Object> data = new LinkedHashMap<>();
+        data.put("token", token);
+        data.put("userInfo", userInfo);
+        data.put("needBindPhone", StrUtil.isBlank(user.getPhone()));
+
+        return ApiResult.ok(data, "登陆成功");
+    }
 
     @AppLog(value = "公众号绑定手机号", type = 1)
     @AuthCheck

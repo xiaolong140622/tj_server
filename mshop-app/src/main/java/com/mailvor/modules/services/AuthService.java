@@ -4,6 +4,8 @@
  */
 package com.mailvor.modules.services;
 
+import cn.binarywang.wx.miniapp.api.WxMaService;
+import cn.binarywang.wx.miniapp.bean.WxMaJscode2SessionResult;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.SecureUtil;
 import com.alibaba.fastjson.JSONObject;
@@ -15,6 +17,7 @@ import com.mailvor.enums.AppFromEnum;
 import com.mailvor.modules.activity.service.MwUserExtractService;
 import com.mailvor.modules.auth.param.RegParam;
 import com.mailvor.modules.auth.param.WechatLoginParam;
+import com.mailvor.modules.mp.config.WxMaConfiguration;
 import com.mailvor.modules.mp.config.WxMpConfiguration;
 import com.mailvor.modules.shop.domain.MwSystemAttachment;
 import com.mailvor.modules.shop.service.MwSystemAttachmentService;
@@ -204,6 +207,89 @@ public class AuthService {
      */
     public MwUser authPhone(String phone) {
         return userService.getOne(Wrappers.<MwUser>lambdaQuery().eq(MwUser::getPhone, phone));
+    }
+
+    /**
+     * 小程序登录（wx.login code -> jscode2session -> openid/session_key）
+     * 关键点：登录成功后必须把 session_key 写入 Redis(MSHOP_MINI_SESSION_KET + uid)，
+     * 否则后续小程序绑定手机号(/wxapp/binding)读取 sessionKey 会失败。
+     *
+     * @param code wx.login 返回的 code
+     * @return 建/匹配到的 MwUser
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public MwUser wechatMaLogin(String code) {
+        //读取小程序配置
+        String appId = redisUtils.getY(ShopKeyUtils.getWxAppAppId());
+        String secret = redisUtils.getY(ShopKeyUtils.getWxAppSecret());
+        if (StrUtil.isBlank(appId) || StrUtil.isBlank(secret)) {
+            throw new MshopException("请先配置小程序");
+        }
+
+        WxMaService wxMaService = WxMaConfiguration.getWxMaService();
+        WxMaJscode2SessionResult session;
+        try {
+            session = wxMaService.jsCode2SessionInfo(code);
+        } catch (WxErrorException e) {
+            log.error("小程序登录失败:{}", e.getMessage());
+            throw new MshopException("微信登录失败");
+        }
+        String openid = session.getOpenid();
+        String unionid = session.getUnionid();
+        String sessionKey = session.getSessionKey();
+        if (StrUtil.isBlank(openid)) {
+            throw new MshopException("微信登录失败");
+        }
+
+        //如果开启了UnionId，用unionid匹配用户
+        String matchKey = StrUtil.isNotBlank(unionid) ? unionid : openid;
+
+        MwUserUnion userUnion = userUnionService.getByOpenId(matchKey);
+        MwUser user;
+        String ip = IpUtil.getRequestIp();
+        if (userUnion != null) {
+            user = userService.getById(userUnion.getUid());
+            if (user == null) {
+                throw new MshopException("用户不存在");
+            }
+            user.setLastIp(ip);
+            userService.updateById(user);
+        } else {
+            user = MwUser.builder()
+                    .username(openid)
+                    .nickname("微信用户")
+                    .avatar(ShopConstants.MSHOP_DEFAULT_AVATAR)
+                    .addIp(ip)
+                    .lastIp(ip)
+                    .level(3)
+                    .levelJd(3)
+                    .levelPdd(3)
+                    .levelVip(3)
+                    .levelDy(3)
+                    .userType(AppFromEnum.ROUNTINE.getValue())
+                    .status(1)
+                    .code(getCode())
+                    .build();
+            userService.save(user);
+
+            //保存小程序openid到多平台union
+            WechatUserDto wechatUserDto = WechatUserDto.builder()
+                    .openid(openid)
+                    .unionId(unionid)
+                    .routineOpenid(openid)
+                    .nickname("微信用户")
+                    .headimgurl(ShopConstants.MSHOP_DEFAULT_AVATAR)
+                    .language("")
+                    .subscribe(false)
+                    .subscribeTime(0L)
+                    .build();
+            userUnionService.save(user.getUid(), wechatUserDto);
+        }
+
+        //写入session_key，供后续绑定手机号(/wxapp/binding)解密使用
+        RedisUtil.set(ShopConstants.MSHOP_MINI_SESSION_KET + user.getUid(), sessionKey);
+
+        return user;
     }
 
     /**
