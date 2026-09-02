@@ -136,8 +136,7 @@ public class DataokeController {
     }
 
     /**
-     * Goods word json object.
-     *
+     * 获取商品解析
      * @param goodsId the goods id
      * @param type    默认传空， type=share时，说明分享生成的口令，pid需要绑定更长时间，5小时，
      * @param uid 如果uid存在不等于0说明是店铺订单
@@ -263,7 +262,7 @@ public class DataokeController {
     }
 
     /**
-     * 解析淘宝内容
+     * 解析内容
      *
      * @param param the param
      * @return the json object

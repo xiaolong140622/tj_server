@@ -41,6 +41,12 @@ import java.util.TreeMap;
 
 import static com.mailvor.modules.tk.constants.TkConstants.*;
 
+/**
+ * @author ：yangjie
+ * @date ：Created in 2022/11/21 14:39
+ * @description：好单库接口
+ * @version: 1.0
+ */
 @RestController
 @RequestMapping("/ku")
 @Slf4j
