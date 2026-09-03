@@ -283,4 +283,18 @@ public class UserBillController {
         return ApiResult.ok(map);
     }
 
+    /**
+     * 获取用户推广码
+     */
+    @AuthCheck
+    @GetMapping("/spread/code")
+    @ApiOperation(value = "获取用户推广码", notes = "返回当前用户的推广邀请码")
+    public ApiResult<Map<String, Object>> spreadCode() {
+        MwUser mwUser = LocalUser.getUser();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("code", mwUser.getUid());
+        result.put("spreadUid", mwUser.getSpreadUid());
+        return ApiResult.ok(result);
+    }
+
 }

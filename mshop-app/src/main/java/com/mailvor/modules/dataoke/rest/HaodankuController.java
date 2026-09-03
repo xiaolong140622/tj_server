@@ -436,4 +436,16 @@ public class HaodankuController {
         return kuService.detailJD(param);
     }
 
+    @GetMapping(value = "/nine/cate")
+    public JSONObject nineCate() {
+        return restTemplate.getForObject(NINE_CATE, JSONObject.class);
+    }
+
+    @GetMapping(value = "/nine/list")
+    public JSONObject nineList(@RequestParam(defaultValue = "1") Integer pageId,
+                               @RequestParam(defaultValue = "10") Integer pageSize,
+                               @RequestParam String cid) {
+        return restTemplate.getForObject(String.format(NINE_LIST, cid, pageId, pageSize), JSONObject.class);
+    }
+
 }
