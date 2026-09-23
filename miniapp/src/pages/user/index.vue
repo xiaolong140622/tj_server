@@ -128,6 +128,7 @@
 import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useUserStore } from '../../store/user';
+import { useAppStore } from '../../store/app';
 import { get } from '../../utils/request';
 import { formatMoney } from '../../utils/format';
 import { camIcon, copyIcon, ICONS } from '../../utils/icons';
@@ -135,6 +136,7 @@ import { useAvatar } from '../../utils/useAvatar';
 import ProfileDrawer from '../../components/ProfileDrawer.vue';
 
 const userStore = useUserStore();
+const appStore = useAppStore();
 const { avatarUploading, avatarDisplaySrc, onChooseAvatar, onChooseAvatarError, onAvatarImgError } = useAvatar();
 
 /* ---------- 用户信息 ---------- */
@@ -256,8 +258,16 @@ const openProfile = () => {
 
 /* ---------- 导航 ---------- */
 const goLogin = () => uni.navigateTo({ url: '/pages/login/index' });
+// tabBar 页 navigateTo 必静默失败：统一 switchTab；spread 三段 tab 用全局意图传参（switchTab 不支持 query）
+const TAB_PAGES = ['/pages/index/index', '/pages/order/list', '/pages/user/spread', '/pages/user/index'];
 const goPage = (url) => {
   if (!isLoggedIn.value) { goLogin(); return; }
+  const [path, query] = url.split('?');
+  if (path === '/pages/user/spread' && query) {
+    const pair = query.split('&').find((s) => s.startsWith('tab='));
+    if (pair) appStore.setSpreadTabIntent(pair.slice(4));
+  }
+  if (TAB_PAGES.includes(path)) { uni.switchTab({ url: path }); return; }
   uni.navigateTo({ url });
 };
 const onAssetClick = () => {

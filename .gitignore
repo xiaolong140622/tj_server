@@ -9,3 +9,7 @@ logs
 *.DS_Store
 mshop-app/src/main/resources/config/
 mshop-admin/src/main/resources/config/
+
+# miniapp build artifacts / deps
+miniapp/node_modules/
+miniapp/dist/
