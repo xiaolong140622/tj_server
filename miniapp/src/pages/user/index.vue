@@ -26,8 +26,12 @@
           <view class="sub-row" v-if="isDefaultNickname" @click="openProfile">
             <text class="sub-guide">点击完善头像昵称</text>
           </view>
-          <view class="sub-row" v-else>
-            <text class="sub">{{ maskedPhone || '未绑定手机号' }}</text>
+          <view class="id-row" v-if="displayUid">
+            <text class="id-text">苏分宝 ID: {{ displayUid }}</text>
+            <view class="id-copy" hover-class="id-copy-hover" @click.stop="copyUid">
+              <view class="id-copy-icon" :style="{ backgroundImage: copyIcon }"></view>
+              <text class="id-copy-text">复制</text>
+            </view>
           </view>
         </view>
         <view class="profile-entry" hover-class="profile-entry-hover" @click="openProfile">
@@ -51,150 +55,76 @@
       </view>
     </view>
 
-    <!-- 资产卡 -->
-    <view class="asset-card" hover-class="asset-card-hover" @click="onAssetClick">
-      <view class="asset-row">
-        <view class="asset-col" v-for="col in rewardCols" :key="col.label">
+    <!-- 资产主卡（深色记忆点） -->
+    <view class="ink-card">
+      <view class="ink-top">
+        <view class="ink-balance">
+          <text class="ink-label">可用余额(元)</text>
+          <text class="ink-value">{{ availableText }}</text>
+        </view>
+        <view
+          class="ink-withdraw"
+          :class="{ 'ink-withdraw-disabled': isLoggedIn && !withdrawable }"
+          hover-class="ink-withdraw-hover"
+          @click="onWithdraw"
+        >
+          <text class="ink-withdraw-text">去提现</text>
+          <view class="chevron chevron-onprimary"></view>
+        </view>
+      </view>
+      <view class="ink-row" @click="onAssetClick">
+        <view class="ink-col" v-for="col in rewardCols" :key="col.label">
           <template v-if="rewardLoading && !reward">
-            <view class="skel skel-value"></view>
-            <view class="skel skel-label"></view>
+            <view class="skel-dark skel-value"></view>
+            <view class="skel-dark skel-label"></view>
           </template>
           <template v-else>
-            <view class="asset-value-wrap">
-              <text class="asset-symbol">¥</text>
-              <text class="asset-value">{{ displayValue(col) }}</text>
-            </view>
-            <text class="asset-label">{{ col.label }}</text>
+            <text class="ink-col-value">{{ displayValue(col) }}</text>
+            <text class="ink-col-label">{{ col.label }}</text>
           </template>
         </view>
       </view>
-      <view class="asset-foot" @click.stop="onBillClick">
-        <text class="asset-foot-text">{{ rewardError ? '加载失败，点击重试' : '查看账单明细' }}</text>
-        <view class="chevron"></view>
+      <view class="ink-foot" @click="onBillClick">
+        <text class="ink-foot-text">{{ rewardError ? '加载失败，点击重试' : '查看账单明细' }}</text>
+        <view class="chevron chevron-onprimary"></view>
       </view>
     </view>
 
-    <!-- 功能分组 -->
-    <block v-for="group in menuGroups" :key="group.title">
-      <text class="group-title">{{ group.title }}</text>
-      <view class="menu-card">
-        <view
-          class="menu-item"
-          v-for="item in group.items"
-          :key="item.label"
-          hover-class="menu-hover"
-          @click="goPage(item.url)"
-        >
-          <view class="menu-icon" :class="item.bgClass" :style="{ backgroundImage: item.icon }"></view>
-          <text class="menu-text">{{ item.label }}</text>
-          <view class="chevron"></view>
-        </view>
+    <!-- 好友双入口卡：依赖 J4（JAVA 评估中），未就绪整卡不渲染 -->
+
+    <!-- 功能宫格 -->
+    <view class="grid-card">
+      <view
+        class="grid-cell"
+        v-for="item in menuItems"
+        :key="item.label"
+        hover-class="grid-cell-hover"
+        @click="goPage(item.url)"
+      >
+        <view class="grid-icon" :class="item.bgClass" :style="{ backgroundImage: item.icon }"></view>
+        <text class="grid-text">{{ item.label }}</text>
       </view>
-    </block>
+    </view>
 
     <text class="page-version">苏分宝 v1.0.0</text>
 
-    <!-- 完善资料半屏抽屉 -->
-    <view class="drawer-mask" v-if="profileVisible" @click="closeProfile">
-      <view class="drawer" @click.stop>
-        <view class="drawer-head">
-          <text class="drawer-title">完善个人资料</text>
-          <view class="drawer-close" hover-class="drawer-close-hover" @click="closeProfile">
-            <text class="drawer-close-icon">×</text>
-          </view>
-        </view>
-        <view class="drawer-avatar-row">
-          <button
-            class="drawer-avatar-btn"
-            open-type="chooseAvatar"
-            :disabled="avatarUploading"
-            @chooseavatar="onChooseAvatar"
-            @error="onChooseAvatarError"
-          >
-            <image class="drawer-avatar" :src="avatarDisplaySrc" mode="aspectFill" @error="onAvatarImgError" />
-            <view class="avatar-mask" v-if="avatarUploading">
-              <view class="spinner"></view>
-            </view>
-          </button>
-          <text class="drawer-avatar-tip">点击更换头像</text>
-        </view>
-        <view class="drawer-nick-row">
-          <text class="drawer-nick-label">昵称</text>
-          <input
-            class="drawer-nick-input"
-            type="nickname"
-            placeholder="点击输入昵称（支持使用微信昵称）"
-            placeholder-class="drawer-nick-placeholder"
-            :value="nicknameDraft"
-            maxlength="20"
-            @input="onNicknameInput"
-            @blur="onNicknameInput"
-            @change="onNicknameInput"
-          />
-        </view>
-        <view
-          class="drawer-save"
-          :class="{ 'drawer-save-disabled': !canSave, 'drawer-save-loading': nicknameSaving }"
-          @click="saveProfile"
-        >
-          <text class="drawer-save-text">{{ nicknameSaving ? '保存中…' : '保存' }}</text>
-        </view>
-      </view>
-    </view>
+    <!-- 完善头像昵称抽屉（与设置页共用组件） -->
+    <ProfileDrawer v-model:visible="profileVisible" />
   </view>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { useUserStore } from '../../store/user';
-import { editUser } from '../../api/user';
 import { get } from '../../utils/request';
-import { formatMoney, maskPhone } from '../../utils/format';
-import { BASE_URL, TOKEN_KEY } from '../../utils/constants';
+import { formatMoney } from '../../utils/format';
+import { camIcon, copyIcon, ICONS } from '../../utils/icons';
+import { useAvatar } from '../../utils/useAvatar';
+import ProfileDrawer from '../../components/ProfileDrawer.vue';
 
 const userStore = useUserStore();
-
-/* ---------- 内联 SVG 线性图标（避免新增位图，emoji 仅作降级） ---------- */
-const lineIcon = (stroke, inner) =>
-  `url("data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>${inner}</svg>`
-  )}")`;
-const camIcon = lineIcon('#FF6B35',
-  "<rect x='3' y='7.5' width='18' height='12.5' rx='2'/><circle cx='12' cy='13.8' r='3.2'/><path d='M8.6 7.5 10.1 5h3.8l1.5 2.5'/>");
-
-const menuGroups = [
-  {
-    title: '交易服务',
-    items: [
-      {
-        label: '我的订单', url: '/pages/order/list', bgClass: 'icon-order',
-        icon: lineIcon('#FF6B35', "<path d='M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z'/><path d='M14 3v5h5'/><path d='M9 13h6M9 17h4'/>"),
-      },
-      {
-        label: '我的余额', url: '/pages/user/balance', bgClass: 'icon-balance',
-        icon: lineIcon('#FA8C16', "<circle cx='8.5' cy='8.5' r='5.5'/><circle cx='15.5' cy='15.5' r='5.5'/>"),
-      },
-      {
-        label: '账单明细', url: '/pages/user/bill', bgClass: 'icon-bill',
-        icon: lineIcon('#1890FF', "<path d='M4 6h2M4 12h2M4 18h2M10 6h10M10 12h10M10 18h7'/>"),
-      },
-    ],
-  },
-  {
-    title: '推广与服务',
-    items: [
-      {
-        label: '推广中心', url: '/pages/user/spread', bgClass: 'icon-spread',
-        icon: lineIcon('#07C160', "<circle cx='6' cy='12' r='2.5'/><circle cx='18' cy='6' r='2.5'/><circle cx='18' cy='18' r='2.5'/><path d='M8.2 10.9l7.6-3.8M8.2 13.1l7.6 3.8'/>"),
-      },
-      {
-        label: '设置', url: '/pages/user/settings', bgClass: 'icon-settings',
-        icon: lineIcon('#6B7280', "<path d='M4 6h4M14 6h6M4 12h8M18 12h2M4 18h2M12 18h8'/><circle cx='11' cy='6' r='2.3'/><circle cx='15.5' cy='12' r='2.3'/><circle cx='9' cy='18' r='2.3'/>"),
-      },
-    ],
-  },
-];
+const { avatarUploading, avatarDisplaySrc, onChooseAvatar, onChooseAvatarError, onAvatarImgError } = useAvatar();
 
 /* ---------- 用户信息 ---------- */
 const isLoggedIn = computed(() => userStore.isLoggedIn);
@@ -202,117 +132,45 @@ const displayUser = computed(() => userStore.userInfo || {});
 const nickname = computed(() => displayUser.value?.nickname || '用户');
 const isDefaultNickname = computed(
   () => !displayUser.value?.nickname || displayUser.value.nickname === '微信用户');
-const maskedPhone = computed(() => maskPhone(displayUser.value?.phone || displayUser.value?.mobile || ''));
+const displayUid = computed(() => (isLoggedIn.value ? displayUser.value?.uid || '' : ''));
 
-/* ---------- 头像：换头像链路与状态 ---------- */
-const avatarPreview = ref('');
-const avatarUploading = ref(false);
-const avatarBroken = ref(false);
-
-// QC-03 口径：avatar 为空才显示 logo 占位；任何有效 URL 直接加载，失败经 binderror 回落 logo
-const serverAvatar = computed(() => {
-  const raw = displayUser.value?.avatar || '';
-  if (!raw) return '/static/logo.png';
-  return raw.startsWith('/') ? BASE_URL + raw : raw;
-});
-const avatarDisplaySrc = computed(() => {
-  if (avatarPreview.value) return avatarPreview.value;
-  if (avatarBroken.value) return '/static/logo.png';
-  return serverAvatar.value;
-});
-watch(serverAvatar, () => { avatarBroken.value = false; });
-
-const onAvatarImgError = () => { avatarBroken.value = true; };
-
-// chooseAvatar 临时文件在 Windows 开发者工具存在读取竞态（ENOENT，模拟器已知问题）：
-// 先复制到 USER_DATA_PATH 稳定路径（含延时重试）再上传；上传中锁重复点击
-const copyToStable = (src, ext) =>
-  new Promise((resolve, reject) => {
-    const base = typeof wx !== 'undefined' && wx.env ? wx.env.USER_DATA_PATH : '';
-    if (!base) { reject(new Error('USER_DATA_PATH unavailable')); return; }
-    const dest = `${base}/avatar_pick_${Date.now()}.${ext}`;
-    let attemptsLeft = 2;
-    const once = () => {
-      uni.getFileSystemManager().copyFile({
-        srcPath: src,
-        destPath: dest,
-        success: () => resolve(dest),
-        fail: (err) => {
-          if (attemptsLeft > 0) { attemptsLeft -= 1; setTimeout(once, 300); }
-          else reject(err);
-        },
-      });
-    };
-    once();
-  });
-
-const rollbackAvatar = (msg) => {
-  avatarPreview.value = ''; // 失败回滚为原头像
-  uni.showToast({ title: msg, icon: 'none' });
-};
-
-const uploadAvatar = (filePath) => {
-  uni.uploadFile({
-    url: BASE_URL + '/user/avatar/upload',
-    filePath,
-    name: 'file',
-    header: { Authorization: `Bearer ${uni.getStorageSync(TOKEN_KEY)}` },
-    success: async (res) => {
-      let body = null;
-      try { body = JSON.parse(res.data); } catch (e) { body = null; }
-      const url = body && body.data ? body.data.url : '';
-      if (res.statusCode !== 200 || !url) {
-        rollbackAvatar((body && body.msg) || '头像上传失败，请确认后端服务后重试');
-        return;
-      }
-      try {
-        await editUser({ avatar: BASE_URL + url });
-        await userStore.refreshUserInfo();
-        avatarPreview.value = '';
-        uni.showToast({ title: '头像已更新', icon: 'success' });
-      } catch (e) {
-        rollbackAvatar('头像保存失败，请重试');
-      }
-    },
-    fail: () => rollbackAvatar('头像上传失败，请重试'),
-    complete: () => { avatarUploading.value = false; },
+const copyUid = () => {
+  uni.setClipboardData({
+    data: String(displayUid.value),
+    success: () => uni.showToast({ title: 'ID 已复制', icon: 'success' }),
   });
 };
 
-const onChooseAvatar = async (e) => {
-  const tempPath = e.detail && e.detail.avatarUrl;
-  if (!tempPath || avatarUploading.value) return;
-  avatarBroken.value = false;
-  avatarPreview.value = tempPath; // 本地秒换预览
-  avatarUploading.value = true;
-  const m = tempPath.match(/\.(\w+)(\?|$)/);
-  const ext = m ? m[1] : 'png';
-  try {
-    const stable = await copyToStable(tempPath, ext);
-    uploadAvatar(stable);
-  } catch (err) {
-    console.warn('avatar copy failed, upload temp file directly', err);
-    uploadAvatar(tempPath);
+/* ---------- 可用余额与提现（口径 J1 待 JAVA 结论，暂用 nowMoney） ---------- */
+const availableText = computed(() => {
+  if (!isLoggedIn.value) return '--.--';
+  return formatMoney(displayUser.value?.nowMoney ?? 0);
+});
+const withdrawable = computed(() => {
+  const n = parseFloat(displayUser.value?.nowMoney ?? 0);
+  return !Number.isNaN(n) && n > 0;
+});
+const onWithdraw = () => {
+  if (!isLoggedIn.value) { goLogin(); return; }
+  if (!withdrawable.value) {
+    uni.showToast({ title: '暂无可提现余额', icon: 'none' });
+    return;
   }
+  uni.navigateTo({ url: '/pages/user/balance' });
 };
 
-const onChooseAvatarError = (e) => {
-  const msg = (e && e.detail && e.detail.errMsg) || '';
-  if (msg.includes('cancel')) return; // 用户主动取消：静默处理，不弹错
-  uni.showToast({ title: '未获取到微信头像（模拟器为已知问题，请真机重试）', icon: 'none' });
-};
-
-/* ---------- 奖励资产（契约：GET /user/reward/summary，外层 ApiResult，前端 request.js 按 success/status 判定） ---------- */
+/* ---------- 奖励三值（契约：GET /user/reward/summary；失败 0 + 点击重试，QC-01） ---------- */
 const reward = ref(null);
 const rewardLoading = ref(false);
 const rewardError = ref(false);
 
 const rewardCols = computed(() => [
-  { label: '累计奖励', value: reward.value ? reward.value.total : null },
   { label: '待结算', value: reward.value ? reward.value.pending : null },
   { label: '已到账', value: reward.value ? reward.value.settled : null },
+  { label: '累计奖励', value: reward.value ? reward.value.total : null },
 ]);
 const displayValue = (col) => {
+  if (!isLoggedIn.value) return '--.--';
   if (rewardError.value) return formatMoney(0); // 失败显示 0 + 重试引导；正式链路禁止假数据
   if (col.value === null || col.value === undefined) return '--.--';
   return formatMoney(col.value);
@@ -337,47 +195,31 @@ const loadReward = async () => {
   }
 };
 
-/* ---------- 完善资料抽屉（改昵称 + 换头像双入口） ---------- */
-const profileVisible = ref(false);
-const nicknameDraft = ref('');
-const nicknameSaving = ref(false);
+/* ---------- 功能宫格（J4/J6 未就绪入口不进格，不留死格） ---------- */
+const menuItems = [
+  {
+    label: '我的订单', url: '/pages/order/list', bgClass: 'icon-order',
+    icon: ICONS.order('#FF6B35'),
+  },
+  {
+    label: '账单明细', url: '/pages/user/bill', bgClass: 'icon-bill',
+    icon: ICONS.bill('#1890FF'),
+  },
+  {
+    label: '推广中心', url: '/pages/user/spread', bgClass: 'icon-spread',
+    icon: ICONS.spread('#07C160'),
+  },
+  {
+    label: '设置', url: '/pages/user/settings', bgClass: 'icon-settings',
+    icon: ICONS.settings('#6B7280'),
+  },
+];
 
+/* ---------- 完善资料抽屉 ---------- */
+const profileVisible = ref(false);
 const openProfile = () => {
   if (!isLoggedIn.value) { goLogin(); return; }
-  const cur = displayUser.value?.nickname || '';
-  nicknameDraft.value = cur === '微信用户' ? '' : cur;
   profileVisible.value = true;
-};
-const closeProfile = () => {
-  if (nicknameSaving.value) return;
-  profileVisible.value = false;
-};
-const onNicknameInput = (e) => {
-  let v = e && e.detail && typeof e.detail.value === 'string' ? e.detail.value : nicknameDraft.value;
-  if (v.length > 20) {
-    v = v.slice(0, 20);
-    uni.showToast({ title: '昵称最长20个字符', icon: 'none' });
-  }
-  nicknameDraft.value = v;
-};
-// 空昵称置灰、保存中锁按钮
-const canSave = computed(() => !nicknameSaving.value && nicknameDraft.value.trim().length > 0);
-const saveProfile = async () => {
-  if (nicknameSaving.value) return;
-  const name = nicknameDraft.value.trim(); // 禁止首尾空格
-  if (!name) return;
-  if (name === (displayUser.value?.nickname || '')) { profileVisible.value = false; return; } // 无改动不发请求
-  nicknameSaving.value = true;
-  try {
-    await editUser({ nickname: name });
-    await userStore.refreshUserInfo();
-    profileVisible.value = false;
-    uni.showToast({ title: '已保存', icon: 'success' });
-  } catch (e) {
-    uni.showToast({ title: '保存失败，请重试', icon: 'none' }); // 失败保持抽屉打开
-  } finally {
-    nicknameSaving.value = false;
-  }
 };
 
 /* ---------- 导航 ---------- */
@@ -388,8 +230,7 @@ const goPage = (url) => {
 };
 const onAssetClick = () => {
   if (!isLoggedIn.value) { goLogin(); return; }
-  if (rewardError.value && !rewardLoading.value) { loadReward(); return; }
-  goPage('/pages/user/balance');
+  if (rewardError.value && !rewardLoading.value) { loadReward(); }
 };
 const onBillClick = () => {
   if (!isLoggedIn.value) { goLogin(); return; }
@@ -400,7 +241,6 @@ const onBillClick = () => {
 onShow(() => {
   if (!isLoggedIn.value) {
     reward.value = null;
-    avatarPreview.value = '';
     return;
   }
   loadReward();
@@ -411,6 +251,8 @@ onShow(() => {
 .page-user {
   --primary: #FF6B35;
   --hero-gradient: linear-gradient(160deg, #FF6B35 0%, #FF9A62 100%);
+  --ink-gradient: linear-gradient(150deg, #2B211E 0%, #1F1B1A 100%);
+  --gold: #FFD9C2;
   --page-bg: #F6F7F9;
   --card-bg: #FFFFFF;
   --text-main: #1F2126;
@@ -439,12 +281,12 @@ onShow(() => {
 .hero-user { display: flex; align-items: center; position: relative; }
 
 .avatar-wrap { position: relative; flex-shrink: 0; }
-.avatar-btn, .drawer-avatar-btn {
+.avatar-btn {
   padding: 0; margin: 0; line-height: 1; background: transparent; border: none;
   width: 128rpx; height: 128rpx; border-radius: 50%;
   position: relative; overflow: hidden;
 }
-.avatar-btn::after, .drawer-avatar-btn::after { border: none; }
+.avatar-btn::after { border: none; }
 .avatar {
   width: 128rpx; height: 128rpx; border-radius: 50%;
   border: 4rpx solid rgba(255, 255, 255, 0.65);
@@ -480,6 +322,21 @@ onShow(() => {
 .sub-inline { display: block; margin-top: 12rpx; }
 .sub-guide { font-size: 26rpx; color: rgba(255, 255, 255, 0.95); text-decoration: underline; }
 
+.id-row { display: flex; align-items: center; margin-top: 12rpx; }
+.id-text { font-size: 24rpx; color: rgba(255, 255, 255, 0.85); }
+.id-copy {
+  display: flex; align-items: center;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 999rpx; padding: 4rpx 16rpx; margin-left: 14rpx;
+  transition: background-color 0.15s;
+}
+.id-copy-hover { background: rgba(255, 255, 255, 0.32); }
+.id-copy-icon {
+  width: 22rpx; height: 22rpx; margin-right: 6rpx;
+  background-repeat: no-repeat; background-position: center; background-size: 22rpx;
+}
+.id-copy-text { font-size: 22rpx; color: #fff; }
+
 .profile-entry {
   display: flex; align-items: center;
   background: rgba(255, 255, 255, 0.18);
@@ -494,78 +351,89 @@ onShow(() => {
 }
 .guest-cta-text { font-size: 28rpx; font-weight: bold; color: var(--primary); }
 
-/* ---------- 资产卡 ---------- */
-.asset-card {
+/* ---------- 资产主卡（深色） ---------- */
+.ink-card {
   margin: -56rpx 24rpx 0;
-  background: var(--card-bg);
+  background: var(--ink-gradient);
+  border: 1rpx solid rgba(255, 107, 53, 0.35);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-float);
   position: relative; z-index: 1;
   overflow: hidden;
 }
-.asset-card-hover { background: #FFFAF7; }
-.asset-row { display: flex; align-items: center; padding: 40rpx 0 36rpx; }
-.asset-col { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; }
-.asset-col + .asset-col::before {
-  content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-  width: 1rpx; height: 56rpx; background: var(--divider);
+.ink-top {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 36rpx 32rpx 8rpx;
 }
-.asset-value-wrap { display: flex; align-items: baseline; }
-.asset-symbol { font-size: 26rpx; color: var(--primary); font-weight: bold; margin-right: 2rpx; }
-.asset-value { font-size: 42rpx; color: var(--primary); font-weight: bold; }
-.asset-label { font-size: 24rpx; color: var(--text-sub); margin-top: 10rpx; }
+.ink-balance { display: flex; flex-direction: column; }
+.ink-label { font-size: 26rpx; color: rgba(255, 255, 255, 0.65); }
+.ink-value { font-size: 56rpx; font-weight: bold; color: var(--gold); margin-top: 8rpx; line-height: 1.1; }
+.ink-withdraw {
+  display: flex; align-items: center;
+  background: linear-gradient(135deg, #FF6B35, #FF8F65);
+  border-radius: 999rpx; padding: 14rpx 28rpx;
+  box-shadow: 0 6rpx 20rpx rgba(255, 107, 53, 0.35);
+  transition: opacity 0.15s;
+}
+.ink-withdraw-hover { opacity: 0.85; }
+.ink-withdraw-disabled { background: rgba(255, 255, 255, 0.25); box-shadow: none; }
+.ink-withdraw-text { font-size: 26rpx; font-weight: bold; color: #fff; margin-right: 6rpx; }
 
-.skel {
-  background: linear-gradient(90deg, #F0F1F3 25%, #F7F8FA 37%, #F0F1F3 63%);
+.ink-row { display: flex; align-items: center; padding: 24rpx 0 28rpx; }
+.ink-col { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; }
+.ink-col + .ink-col::before {
+  content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 1rpx; height: 56rpx; background: rgba(255, 255, 255, 0.12);
+}
+.ink-col-value { font-size: 32rpx; font-weight: bold; color: rgba(255, 255, 255, 0.88); }
+.ink-col-label { font-size: 24rpx; color: rgba(255, 255, 255, 0.65); margin-top: 8rpx; }
+
+.skel-dark {
+  background: linear-gradient(90deg, rgba(255,255,255,0.12) 25%, rgba(255,255,255,0.20) 37%, rgba(255,255,255,0.12) 63%);
   background-size: 400% 100%;
   animation: shimmer 1.2s ease infinite;
   border-radius: 8rpx;
 }
 @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
-.skel-value { width: 120rpx; height: 40rpx; }
+.skel-value { width: 110rpx; height: 32rpx; }
 .skel-label { width: 72rpx; height: 22rpx; margin-top: 14rpx; }
 
-.asset-foot {
+.ink-foot {
   height: 72rpx; display: flex; align-items: center; justify-content: center;
-  border-top: 1rpx solid var(--divider);
+  border-top: 1rpx solid rgba(255, 255, 255, 0.10);
 }
-.asset-foot-text { font-size: 26rpx; color: var(--text-sub); margin-right: 8rpx; }
+.ink-foot-text { font-size: 26rpx; color: rgba(255, 255, 255, 0.65); margin-right: 8rpx; }
 
-/* ---------- 功能分组 ---------- */
-.group-title {
-  display: block; font-size: 28rpx; color: var(--text-sub);
-  margin: 32rpx 32rpx 0;
-}
-.menu-card {
+/* ---------- 功能宫格 ---------- */
+.grid-card {
   margin: 24rpx 24rpx 0;
   background: var(--card-bg);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
-  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  padding: 12rpx 0;
 }
-.menu-item {
-  position: relative;
-  display: flex; align-items: center;
-  height: 108rpx; padding: 0 32rpx;
-  box-sizing: border-box;
-  transition: background-color 0.15s;
+.grid-cell {
+  width: 25%;
+  height: 150rpx;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  transition: transform 0.15s;
 }
-.menu-item::before {
-  content: ''; position: absolute; left: 120rpx; right: 0; top: 0;
-  height: 1rpx; background: var(--divider);
-}
-.menu-item:first-child::before { display: none; }
-.menu-hover { background: #FAFBFC; }
-.menu-icon {
-  width: 64rpx; height: 64rpx; border-radius: 18rpx; margin-right: 24rpx; flex-shrink: 0;
-  background-repeat: no-repeat; background-position: center; background-size: 36rpx;
+.grid-cell-hover { transform: scale(0.97); }
+.grid-cell-hover .grid-icon { filter: brightness(0.94); }
+.grid-icon {
+  width: 88rpx; height: 88rpx; border-radius: 24rpx;
+  background-repeat: no-repeat; background-position: center; background-size: 56rpx;
 }
 .icon-order { background-color: #FFF1EC; }
 .icon-balance { background-color: #FFF7E6; }
 .icon-bill { background-color: #EEF7FF; }
 .icon-spread { background-color: #ECFFF5; }
 .icon-settings { background-color: #F3F4F6; }
-.menu-text { flex: 1; font-size: 30rpx; color: var(--text-main); }
+.grid-text { font-size: 26rpx; color: var(--text-main); margin-top: 12rpx; }
+
 .chevron {
   width: 14rpx; height: 14rpx; flex-shrink: 0;
   border-top: 3rpx solid var(--text-weak); border-right: 3rpx solid var(--text-weak);
@@ -578,47 +446,4 @@ onShow(() => {
   font-size: 26rpx; color: #BBBBBB;
   padding-top: 48rpx;
 }
-
-/* ---------- 完善资料抽屉 ---------- */
-.drawer-mask {
-  position: fixed; left: 0; right: 0; top: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.4); z-index: 100;
-  display: flex; align-items: flex-end;
-}
-.drawer {
-  width: 100%;
-  background: var(--card-bg);
-  border-radius: 32rpx 32rpx 0 0;
-  padding: 40rpx 32rpx calc(32rpx + env(safe-area-inset-bottom));
-  box-sizing: border-box;
-  animation: drawer-up 0.25s ease;
-}
-@keyframes drawer-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
-.drawer-head { display: flex; align-items: center; justify-content: space-between; }
-.drawer-title { font-size: 34rpx; font-weight: bold; color: var(--text-main); }
-.drawer-close { padding: 8rpx 12rpx; }
-.drawer-close-hover { opacity: 0.6; }
-.drawer-close-icon { font-size: 40rpx; color: var(--text-weak); line-height: 1; }
-
-.drawer-avatar-row { display: flex; align-items: center; height: 140rpx; margin-top: 16rpx; }
-.drawer-avatar-btn { width: 96rpx; height: 96rpx; }
-.drawer-avatar { width: 96rpx; height: 96rpx; border-radius: 50%; background: #F3F4F6; }
-.drawer-avatar-tip { font-size: 26rpx; color: var(--text-sub); margin-left: 24rpx; }
-
-.drawer-nick-row {
-  display: flex; align-items: center; height: 100rpx;
-  border-bottom: 1rpx solid var(--divider);
-}
-.drawer-nick-label { font-size: 28rpx; color: var(--text-main); flex-shrink: 0; margin-right: 24rpx; }
-.drawer-nick-input { flex: 1; text-align: right; font-size: 28rpx; color: var(--text-main); }
-.drawer-nick-placeholder { color: var(--text-weak); }
-
-.drawer-save {
-  margin-top: 48rpx; height: 88rpx; border-radius: 44rpx;
-  background: linear-gradient(135deg, #FF6B35, #FF8F65);
-  display: flex; align-items: center; justify-content: center;
-}
-.drawer-save-text { font-size: 32rpx; font-weight: bold; color: #fff; }
-.drawer-save-disabled { background: #FFC9B3; }
-.drawer-save-loading { opacity: 0.8; }
 </style>
