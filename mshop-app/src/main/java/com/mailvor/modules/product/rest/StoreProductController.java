@@ -50,6 +50,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -344,12 +345,15 @@ public class StoreProductController {
     @AuthCheck
     @GetMapping("/tao/orders")
     @ApiOperation(value = "商品列表",notes = "商品列表")
-    public ResponseEntity<PageResult<MailvorTbOrderDto>> tbOrders(MailvorTbOrderQueryCriteria criteria, Pageable pageable){
+    public ApiResult<List<MailvorTbOrderDto>> tbOrders(MailvorTbOrderQueryCriteria criteria,
+                                                       @RequestParam(value = "page", defaultValue = "1") int page,
+                                                       @RequestParam(value = "limit", defaultValue = "20") int limit){
+        Pageable pageable = PageRequest.of(Math.max(page - 1, 0), Math.max(limit, 1));
         boolean hasChild = initCriteria(criteria);
         if(!hasChild) {
-            return new ResponseEntity<>(new PageResult(0, Collections.emptyList()), HttpStatus.OK);
+            return ApiResult.resultPage(0L, 0, Collections.emptyList());
         }
-        return new ResponseEntity<>(tbOrderService.queryAll(criteria,pageable), HttpStatus.OK);
+        return pageEnvelope(tbOrderService.queryAll(criteria, pageable), limit);
     }
     /**
      * 获取京东订单列表
@@ -357,12 +361,15 @@ public class StoreProductController {
     @AuthCheck
     @GetMapping("/jd/orders")
     @ApiOperation(value = "商品列表",notes = "商品列表")
-    public ResponseEntity<PageResult<MailvorJdOrderDto>> jdOrders(MailvorJdOrderQueryCriteria criteria, Pageable pageable){
+    public ApiResult<List<MailvorJdOrderDto>> jdOrders(MailvorJdOrderQueryCriteria criteria,
+                                                       @RequestParam(value = "page", defaultValue = "1") int page,
+                                                       @RequestParam(value = "limit", defaultValue = "20") int limit){
+        Pageable pageable = PageRequest.of(Math.max(page - 1, 0), Math.max(limit, 1));
         boolean hasChild = initCriteria(criteria);
         if(!hasChild) {
-            return new ResponseEntity<>(new PageResult(0, Collections.emptyList()), HttpStatus.OK);
+            return ApiResult.resultPage(0L, 0, Collections.emptyList());
         }
-        return new ResponseEntity<>(jdOrderService.queryAll(criteria,pageable), HttpStatus.OK);
+        return pageEnvelope(jdOrderService.queryAll(criteria, pageable), limit);
     }
     /**
      * 获取拼多多订单列表
@@ -370,12 +377,15 @@ public class StoreProductController {
     @AuthCheck
     @GetMapping("/pdd/orders")
     @ApiOperation(value = "商品列表",notes = "商品列表")
-    public ResponseEntity<PageResult<MailvorPddOrderDto>> pddOrders(MailvorPddOrderQueryCriteria criteria, Pageable pageable){
+    public ApiResult<List<MailvorPddOrderDto>> pddOrders(MailvorPddOrderQueryCriteria criteria,
+                                                         @RequestParam(value = "page", defaultValue = "1") int page,
+                                                         @RequestParam(value = "limit", defaultValue = "20") int limit){
+        Pageable pageable = PageRequest.of(Math.max(page - 1, 0), Math.max(limit, 1));
         boolean hasChild = initCriteria(criteria);
         if(!hasChild) {
-            return new ResponseEntity<>(new PageResult(0, Collections.emptyList()), HttpStatus.OK);
+            return ApiResult.resultPage(0L, 0, Collections.emptyList());
         }
-        return new ResponseEntity<>(pddOrderService.queryAll(criteria,pageable), HttpStatus.OK);
+        return pageEnvelope(pddOrderService.queryAll(criteria, pageable), limit);
     }
     /**
      * 获取唯品会订单列表
@@ -396,12 +406,15 @@ public class StoreProductController {
     @AuthCheck
     @GetMapping("/dy/orders")
     @ApiOperation(value = "抖音订单列表",notes = "抖音订单列表")
-    public ResponseEntity<PageResult<MailvorDyOrderDto>> dyOrders(MailvorDyOrderQueryCriteria criteria, Pageable pageable){
+    public ApiResult<List<MailvorDyOrderDto>> dyOrders(MailvorDyOrderQueryCriteria criteria,
+                                                       @RequestParam(value = "page", defaultValue = "1") int page,
+                                                       @RequestParam(value = "limit", defaultValue = "20") int limit){
+        Pageable pageable = PageRequest.of(Math.max(page - 1, 0), Math.max(limit, 1));
         boolean hasChild = initCriteria(criteria);
         if(!hasChild) {
-            return new ResponseEntity<>(new PageResult(0, Collections.emptyList()), HttpStatus.OK);
+            return ApiResult.resultPage(0L, 0, Collections.emptyList());
         }
-        return new ResponseEntity<>(dyOrderService.queryAll(criteria,pageable), HttpStatus.OK);
+        return pageEnvelope(dyOrderService.queryAll(criteria, pageable), limit);
     }
 
     /**
@@ -418,8 +431,7 @@ public class StoreProductController {
         return new ResponseEntity<>(mtOrderService.queryAll(criteria,pageable), HttpStatus.OK);
     }
 
-    protected boolean initCriteria(MailvorOrderQueryCriteria criteria) {
-        Long uid = LocalUser.getUser().getUid();
+    protected boolean initCriteria(MailvorOrderQueryCriteria criteria) {        Long uid = LocalUser.getUser().getUid();
         Integer level = criteria.getLevel();
         if(level != null && level > 0) {
             Integer grade = 0;
@@ -436,6 +448,16 @@ public class StoreProductController {
             criteria.setUid(uid);
         }
         return true;
+    }
+
+    /**
+     * PageResult 转全站统一 ApiResult 分页信封（与 /integral/list 对齐：total/totalPage + data 数组）
+     */
+    private static <T> ApiResult<List<T>> pageEnvelope(PageResult<T> pageResult, int limit) {
+        long total = pageResult.getTotalElements();
+        int totalPage = limit > 0 ? (int) ((total + limit - 1) / limit) : 0;
+        List<T> content = pageResult.getContent() == null ? Collections.emptyList() : pageResult.getContent();
+        return ApiResult.resultPage(total, totalPage, content);
     }
 }
 

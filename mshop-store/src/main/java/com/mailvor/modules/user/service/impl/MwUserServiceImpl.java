@@ -229,12 +229,17 @@ public class MwUserServiceImpl extends BaseServiceImpl<UserMapper, MwUser> imple
         if (StrUtil.isBlank(sort)) {
             sort = "u.uid desc";
         }
+        // sort 入参白名单映射：只接受约定枚举，其余回落默认 uid 倒序；防 SQL 注入（mapper 侧 ${} 拼接）
+        String orderByStr;
+        if ("commission".equals(sort)) {
+            orderByStr = "(SELECT IFNULL(SUM(l.fee),0) FROM mw_user_fee_log l WHERE l.uid = u.uid AND l.type = 3 AND l.cid = 1) DESC, u.uid DESC";
+        } else {
+            orderByStr = "u.uid DESC";
+        }
 
         Page<MwUser> pageModel = new Page<>(page, limit);
-        //上面的sort貌似不起作用，用这个
-        pageModel.addOrder(OrderItem.desc("uid"));
         if (ShopCommonEnum.GRADE_0.getValue().equals(grade)) {//-级
-            list = mwUserMapper.getAppUserSpreadCountList(pageModel, userIds, sort);
+            list = mwUserMapper.getAppUserSpreadCountList(pageModel, userIds, orderByStr);
         } else {//二级
             List<MwUser> userListT;
             if(StringUtils.isBlank(keyword)) {
@@ -251,7 +256,7 @@ public class MwUserServiceImpl extends BaseServiceImpl<UserMapper, MwUser> imple
             if (userIdsT.isEmpty()) {
                 return list;
             }
-            list = mwUserMapper.getAppUserSpreadCountList(pageModel, userIdsT, sort);
+            list = mwUserMapper.getAppUserSpreadCountList(pageModel, userIdsT, orderByStr);
 
         }
         return list;

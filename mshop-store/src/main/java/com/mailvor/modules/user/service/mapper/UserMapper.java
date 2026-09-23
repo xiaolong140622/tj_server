@@ -85,7 +85,7 @@ public interface UserMapper extends CoreMapper<MwUser> {
             " open='(' separator=',' close=')'>" +
             "   #{id}" +
             " </foreach>" +
-            " GROUP BY u.uid ORDER BY #{orderByStr} " +
+            " GROUP BY u.uid ORDER BY ${orderByStr} " +
             "</script>")
     @Results(value = {
             @Result(property="uid", column = "uid"),
