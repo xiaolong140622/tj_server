@@ -69,6 +69,11 @@ public interface UserBillMapper extends CoreMapper<MwUserBill> {
             "and uid=#{uid}")
     double sumRechargePrice(@Param("uid") Long uid);
 
+    @Select("select IFNULL(sum(number),0) from mw_user_bill " +
+            "where status=1 and type='brokerage' and pm=1 and category='now_money' " +
+            "and uid=#{uid}")
+    double sumBrokeragePrice(@Param("uid") Long uid);
+
 
     @Select("select IFNULL(sum(number),0) from mw_user_bill " +
             "where status=1 and type='brokerage' and pm=1 and category='now_money' " +

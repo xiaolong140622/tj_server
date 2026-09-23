@@ -28,6 +28,8 @@ import com.mailvor.modules.push.service.JPushService;
 import com.mailvor.modules.shop.service.MwSystemConfigService;
 import com.mailvor.modules.shop.service.MwSystemGroupDataService;
 import com.mailvor.modules.tk.config.TbConfig;
+import com.mailvor.modules.tk.service.UserRewardSummaryService;
+import com.mailvor.modules.tk.vo.RewardSummaryVo;
 import com.mailvor.modules.tools.domain.SensitiveWord;
 import com.mailvor.modules.tools.service.SensitiveWordService;
 import com.mailvor.modules.tools.utils.SensitiveWordUtil;
@@ -95,6 +97,8 @@ public class UserController {
     private final RedisUtils redisUtil;
 
     private final MwUserUnionService userUnionService;
+
+    private final UserRewardSummaryService userRewardSummaryService;
 
     @Value("${file.avatar}")
     private String avatarFilePath;
@@ -249,6 +253,18 @@ public class UserController {
         map.put("recharge",userMoneys[1]);
         map.put("is_hide",systemConfigService.getData(MSHOP_SHOW_RECHARGE));
         return ApiResult.ok(map);
+    }
+
+    /**
+     * 用户奖励汇总：累计奖励/待结算/已到账
+     */
+    @AppLog(value = "查看用户奖励汇总", type = 1)
+    @AuthCheck
+    @GetMapping("/user/reward/summary")
+    @ApiOperation(value = "用户奖励汇总",notes = "累计奖励/待结算/已到账")
+    public ApiResult<RewardSummaryVo> userRewardSummary(){
+        MwUser mwUser = LocalUser.getUser();
+        return ApiResult.ok(userRewardSummaryService.getSummary(mwUser.getUid(), mwUser.getNowMoney()));
     }
 
 
