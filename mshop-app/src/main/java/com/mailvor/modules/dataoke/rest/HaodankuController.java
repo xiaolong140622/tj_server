@@ -188,6 +188,24 @@ public class HaodankuController {
                 .getForObject(BANNER_LIST + kuService.getKuCid(), JSONObject.class);
     }
 
+    /**
+     * 9块9分类 - 前端路径 /ku/nine/cate
+     */
+    @GetMapping(value = "/nine/cate")
+    public JSONObject nineCate() {
+        return restTemplate
+                .getForObject(NINE_CATE, JSONObject.class);
+    }
+
+    /**
+     * 9块9商品列表 - 前端路径 /ku/nine/list
+     */
+    @GetMapping(value = "/nine/list")
+    public JSONObject nineList(Integer pageId, Integer pageSize, String cid) {
+        return restTemplate
+                .getForObject(String.format(NINE_LIST, cid, pageId, pageSize), JSONObject.class);
+    }
+
     @GetMapping(value = "/banners")
     public JSONArray banners() {
         JSONArray homeBanner = normalizeArray(redisUtils.get(HOME_DATA_BANNER));
