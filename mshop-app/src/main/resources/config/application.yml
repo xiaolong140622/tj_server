@@ -5,7 +5,10 @@ server:
     encoding:
       charset: UTF-8
       enabled: true
-      force: true
+      # force=true 会对所有响应(含图片等二进制)追加 charset=UTF-8，导致小程序 image 组件解码失败；
+      # 只需强制请求解码 UTF-8，响应字符集由各 HttpMessageConverter 自行声明
+      force-request: true
+      force-response: false
   tomcat:
     uri-encoding: UTF-8
 
