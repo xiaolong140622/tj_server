@@ -23,4 +23,6 @@ export const ICONS = {
   cache: (c) => lineIcon(c, "<ellipse cx='12' cy='5.5' rx='8' ry='3'/><path d='M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13'/><path d='M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3'/>"),
   about: (c) => lineIcon(c, "<circle cx='12' cy='12' r='9.5'/><path d='M12 11v5.5'/><circle cx='12' cy='7.8' r='0.4'/>"),
   logout: (c) => lineIcon(c, "<path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/><path d='M16 17l5-5-5-5'/><path d='M21 12H9'/>"),
+  friends: (c) => lineIcon(c, "<circle cx='9' cy='8' r='3.4'/><path d='M2.8 19c.7-3.4 3.2-5.3 6.2-5.3s5.5 1.9 6.2 5.3'/><circle cx='17.2' cy='9.2' r='2.6'/><path d='M16.2 14.1c2.6.2 4.5 1.9 5.1 4.4'/>"),
+  invite: (c) => lineIcon(c, "<circle cx='6' cy='12' r='2.6'/><circle cx='18' cy='5.5' r='2.6'/><circle cx='18' cy='18.5' r='2.6'/><path d='M8.3 10.8l7.4-4M8.3 13.2l7.4 4'/>"),
 };

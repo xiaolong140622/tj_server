@@ -28,8 +28,20 @@
         <view class="chevron"></view>
       </view>
       <view class="row-divider"></view>
-      <!-- 手机号可点绑定依赖 J5，未就绪仅展示不可点 -->
-      <view class="row">
+      <!-- J5：未绑定时整行=微信手机号授权按钮（POST /wxapp/binding 解密绑定）；已绑定仅展示脱敏 -->
+      <button
+        v-if="!hasPhone && userStore.isLoggedIn"
+        class="row row-btn"
+        open-type="getPhoneNumber"
+        :disabled="binding"
+        @getphonenumber="onGetPhoneNumber"
+      >
+        <view class="row-icon icon-phone" :style="{ backgroundImage: ICONS.phone('#1890FF') }"></view>
+        <text class="row-label">手机号</text>
+        <text class="row-value row-value-weak">{{ binding ? '绑定中…' : '去绑定' }}</text>
+        <view class="chevron"></view>
+      </button>
+      <view v-else class="row">
         <view class="row-icon icon-phone" :style="{ backgroundImage: ICONS.phone('#1890FF') }"></view>
         <text class="row-label">手机号</text>
         <text class="row-value" :class="{ 'row-value-weak': !hasPhone }">{{ hasPhone ? maskedPhone : '未绑定' }}</text>
@@ -105,6 +117,7 @@ import { onShow } from '@dcloudio/uni-app';
 import { useUserStore } from '../../store/user';
 import { COPYWRITING } from '../../utils/constants';
 import { maskPhone } from '../../utils/format';
+import { post } from '../../utils/request';
 import { ICONS } from '../../utils/icons';
 import { useAvatar } from '../../utils/useAvatar';
 import ProfileDrawer from '../../components/ProfileDrawer.vue';
@@ -116,6 +129,7 @@ const version = ref('1.0.0');
 const cacheSize = ref('0KB');
 const refreshing = ref(false);
 const profileVisible = ref(false);
+const binding = ref(false);
 
 const displayUser = computed(() => userStore.userInfo || {});
 const isDefaultNickname = computed(
@@ -125,6 +139,30 @@ const maskedPhone = computed(() => maskPhone(displayUser.value?.phone || display
 const hasPhone = computed(() => !!(displayUser.value?.phone || displayUser.value?.mobile));
 
 const openProfile = () => { profileVisible.value = true; };
+
+// J5：微信手机号授权 → /wxapp/binding（session_key 解密方案，登录时后端已写 Redis）
+const onGetPhoneNumber = async (e) => {
+  const detail = e && e.detail ? e.detail : {};
+  if (detail.errMsg && detail.errMsg.indexOf('ok') === -1) {
+    uni.showToast({ title: '已取消手机号绑定', icon: 'none' });
+    return;
+  }
+  if (!detail.encryptedData || !detail.iv) {
+    uni.showToast({ title: '未获取到手机号，请稍后再试', icon: 'none' });
+    return;
+  }
+  if (binding.value) return;
+  binding.value = true;
+  try {
+    await post('/wxapp/binding', { encryptedData: detail.encryptedData, iv: detail.iv });
+    await userStore.refreshUserInfo();
+    uni.showToast({ title: '手机号已绑定', icon: 'success' });
+  } catch (err) {
+    // request.js 已按后端 msg 弹提示
+  } finally {
+    binding.value = false;
+  }
+};
 
 const calcCacheSize = () => {
   try {

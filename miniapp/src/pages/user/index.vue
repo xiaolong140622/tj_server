@@ -90,7 +90,18 @@
       </view>
     </view>
 
-    <!-- 好友双入口卡：依赖 J4（JAVA 评估中），未就绪整卡不渲染 -->
+    <!-- 好友双入口卡（J4：带参跳现有 spread 页） -->
+    <view class="friend-card">
+      <view class="friend-cell" hover-class="friend-cell-hover" @click="goPage('/pages/user/spread?tab=friend')">
+        <view class="friend-icon" :style="{ backgroundImage: ICONS.friends('#FF6B35') }"></view>
+        <text class="friend-text">好友列表</text>
+      </view>
+      <view class="friend-divider"></view>
+      <view class="friend-cell" hover-class="friend-cell-hover" @click="goPage('/pages/user/spread?tab=invite')">
+        <view class="friend-icon" :style="{ backgroundImage: ICONS.invite('#FF6B35') }"></view>
+        <text class="friend-text">邀请好友</text>
+      </view>
+    </view>
 
     <!-- 功能宫格 -->
     <view class="grid-card">
@@ -141,19 +152,38 @@ const copyUid = () => {
   });
 };
 
-/* ---------- 可用余额与提现（口径 J1 待 JAVA 结论，暂用 nowMoney） ---------- */
+/* ---------- 可用余额与提现（J1 口径：金额=now_money；阈值=GET /extract/bank minPrice） ---------- */
 const availableText = computed(() => {
   if (!isLoggedIn.value) return '--.--';
   return formatMoney(displayUser.value?.nowMoney ?? 0);
 });
-const withdrawable = computed(() => {
+const minPrice = ref(null);
+const loadExtractMin = async () => {
+  if (!isLoggedIn.value) return;
+  try {
+    const res = await get('/extract/bank', {}, { silent: true });
+    const d = res.result || res.data || {};
+    const n = parseFloat(d.minPrice);
+    minPrice.value = Number.isNaN(n) ? null : n;
+  } catch (e) { /* 取不到阈值时仅按余额>0 判定 */ }
+};
+const balanceNum = computed(() => {
   const n = parseFloat(displayUser.value?.nowMoney ?? 0);
-  return !Number.isNaN(n) && n > 0;
+  return Number.isNaN(n) ? 0 : n;
+});
+const withdrawable = computed(() => {
+  if (balanceNum.value <= 0) return false;
+  if (minPrice.value != null && balanceNum.value < minPrice.value) return false;
+  return true;
 });
 const onWithdraw = () => {
   if (!isLoggedIn.value) { goLogin(); return; }
-  if (!withdrawable.value) {
+  if (balanceNum.value <= 0) {
     uni.showToast({ title: '暂无可提现余额', icon: 'none' });
+    return;
+  }
+  if (minPrice.value != null && balanceNum.value < minPrice.value) {
+    uni.showToast({ title: `满 ${minPrice.value} 元可提现`, icon: 'none' });
     return;
   }
   uni.navigateTo({ url: '/pages/user/balance' });
@@ -195,7 +225,9 @@ const loadReward = async () => {
   }
 };
 
-/* ---------- 功能宫格（J4/J6 未就绪入口不进格，不留死格） ---------- */
+/* ---------- 好友双入口卡（J4） ---------- */
+
+/* ---------- 功能宫格（J6 注销未实现不进格；地址页待产品确认设计稿） ---------- */
 const menuItems = [
   {
     label: '我的订单', url: '/pages/order/list', bgClass: 'icon-order',
@@ -244,6 +276,7 @@ onShow(() => {
     return;
   }
   loadReward();
+  loadExtractMin();
 });
 </script>
 
@@ -403,6 +436,28 @@ onShow(() => {
   border-top: 1rpx solid rgba(255, 255, 255, 0.10);
 }
 .ink-foot-text { font-size: 26rpx; color: rgba(255, 255, 255, 0.65); margin-right: 8rpx; }
+
+/* ---------- 好友双入口卡 ---------- */
+.friend-card {
+  margin: 24rpx 24rpx 0;
+  background: var(--card-bg);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  display: flex; align-items: center;
+  height: 150rpx;
+}
+.friend-cell {
+  flex: 1; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  transition: background-color 0.15s;
+}
+.friend-cell-hover { background: #FAFBFC; }
+.friend-icon {
+  width: 48rpx; height: 48rpx; margin-right: 16rpx; flex-shrink: 0;
+  background-repeat: no-repeat; background-position: center; background-size: 48rpx;
+}
+.friend-text { font-size: 28rpx; color: var(--text-main); }
+.friend-divider { width: 1rpx; height: 64rpx; background: var(--divider); }
 
 /* ---------- 功能宫格 ---------- */
 .grid-card {
