@@ -95,22 +95,25 @@ const avatarSrc = computed(() => {
   return raw;
 });
 
-const onChooseAvatar = (e) => {
-  const tempPath = e.detail?.avatarUrl;
-  if (!tempPath) return;
+const doUploadAvatar = (filePath) => {
   uni.uploadFile({
     url: BASE_URL + '/user/avatar/upload',
-    filePath: tempPath,
+    filePath,
     name: 'file',
     header: { Authorization: `Bearer ${uni.getStorageSync(TOKEN_KEY)}` },
     success: async (res) => {
       try {
-        const body = JSON.parse(res.data);
-        const url = body?.data?.url;
-        if (!body?.success || !url) {
-          uni.showToast({ title: body?.msg || '头像上传失败', icon: 'none' });
+        let body;
+        try { body = JSON.parse(res.data); } catch (parseErr) { body = null; }
+        if (!body || res.statusCode === 404 || !body.data || !body.data.url) {
+          uni.showToast({ title: body?.msg || '头像上传失败（请确认后端已重启）', icon: 'none' });
           return;
         }
+        if (!body.success) {
+          uni.showToast({ title: body.msg || '头像上传失败', icon: 'none' });
+          return;
+        }
+        const url = body.data.url;
         await editUser({ avatar: BASE_URL + url });
         await userStore.refreshUserInfo();
         uni.showToast({ title: '头像已更新', icon: 'success' });
@@ -118,8 +121,36 @@ const onChooseAvatar = (e) => {
         uni.showToast({ title: '头像更新失败', icon: 'none' });
       }
     },
-    fail: () => uni.showToast({ title: '头像上传失败', icon: 'none' }),
+    fail: (err) => {
+      console.error('avatar upload fail', err);
+      uni.showToast({ title: '头像上传失败', icon: 'none' });
+    },
   });
+};
+
+const onChooseAvatar = (e) => {
+  const tempPath = e.detail?.avatarUrl;
+  if (!tempPath) return;
+  // chooseAvatar 返回的是模拟器/真机的临时文件，模拟器下该路径存在竞态（可能已被清理导致 ENOENT），
+  // 先用 FileSystemManager 复制到 USER_DATA_PATH 的稳定路径再上传。
+  try {
+    const fs = uni.getFileSystemManager();
+    const extMatch = tempPath.match(/\.(\w+)$/);
+    const ext = extMatch ? extMatch[1] : 'png';
+    const stablePath = `${wx.env.USER_DATA_PATH}/avatar_pick_${Date.now()}.${ext}`;
+    fs.copyFile({
+      srcPath: tempPath,
+      destPath: stablePath,
+      success: () => doUploadAvatar(stablePath),
+      fail: (err) => {
+        console.error('copy avatar failed', err);
+        uni.showToast({ title: '微信头像获取失败，请重试', icon: 'none' });
+      },
+    });
+  } catch (err) {
+    console.error('avatar copy exception', err);
+    doUploadAvatar(tempPath);
+  }
 };
 
 const loadBalance = async () => {

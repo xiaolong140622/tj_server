@@ -13,7 +13,6 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.google.common.collect.Maps;
 import com.mailvor.api.ApiResult;
 import com.mailvor.api.MshopException;
-import com.mailvor.common.aop.NoRepeatSubmit;
 import com.mailvor.common.bean.LocalUser;
 import com.mailvor.common.interceptor.AuthCheck;
 import com.mailvor.common.interceptor.UserCheck;
@@ -380,11 +379,11 @@ public class UserController {
         return ApiResult.ok(res);
     }
     @AppLog(value = "用户修改信息", type = 1)
-    @AuthCheck
     @PostMapping("/user/avatar/upload")
     @AuthCheck
     @ApiOperation(value = "上传用户头像", notes = "保存至本地头像目录，经 /avatar/** 静态映射访问")
-    public ApiResult<Map<String, String>> uploadAvatar(@RequestPart MultipartFile file) {
+    @SuppressWarnings("rawtypes")
+    public ApiResult uploadAvatar(@RequestPart MultipartFile file) {
         if (file == null || file.isEmpty()) {
             return ApiResult.fail("文件为空");
         }
