@@ -84,7 +84,7 @@
             </view>
           </view>
         </view>
-        <FailRetry v-if="productError && !productList.length" text="商品加载失败" @retry="loadProducts(true)" />
+        <FailRetry v-if="productError && !productList.length" :text="productErrorText || '商品加载失败'" @retry="loadProducts(true)" />
         <Loading :visible="loading && productList.length > 0" text="加载更多..." />
         <Empty
           v-if="!loading && !productError && !productList.length"
@@ -109,6 +109,7 @@ import Loading from '../../components/Loading.vue';
 import Empty from '../../components/Empty.vue';
 import FailRetry from '../../components/FailRetry.vue';
 import { getHomeBanner, getTbGoodsList, getPddGoodsList, getDyKuList, getJdRankList, getSearchHot, getCategoryList } from '../../api/product';
+import { normalizeProductList } from '../../utils/product';
 import { loadCommissionInfo } from '../../utils/commission';
 import { mockBanners, mockCategories, mockHotWord, mockProducts } from '../../mock/index';
 
@@ -124,6 +125,7 @@ const productList = ref([]);
 const hotWord = ref('');
 const loading = ref(false);
 const productError = ref(false);
+const productErrorText = ref('');
 const page = ref(1);
 const hasMore = ref(true);
 
@@ -172,7 +174,17 @@ const loadCategory = async () => {
   if (USE_MOCK) { categoryList.value = mockCategories(); return; }
   try {
     const res = await getCategoryList({ silent: true });
-    categoryList.value = res.result || res.data || [];
+    const tree = res.result || res.data || [];
+    // /category 契约是嵌套树 {id,pid,cateName,pic,children}；宫格取带图的叶子，字段拍平成 {id,name,pic}
+    const flat = [];
+    const walk = (nodes) => {
+      (Array.isArray(nodes) ? nodes : []).forEach((n) => {
+        if (n && n.pic) flat.push({ id: n.id, name: n.cateName || n.name || '', pic: n.pic });
+        if (n && n.children) walk(n.children);
+      });
+    };
+    walk(tree);
+    categoryList.value = flat.filter((c) => c.name).slice(0, 10);
   } catch (e) {
     categoryList.value = [];
   }
@@ -181,7 +193,7 @@ const loadCategory = async () => {
 const loadProducts = async (reset = false) => {
   if (loading.value) return;
   if (!reset && !hasMore.value) return;
-  if (reset) { page.value = 1; hasMore.value = true; productList.value = []; productError.value = false; }
+  if (reset) { page.value = 1; hasMore.value = true; productList.value = []; productError.value = false; productErrorText.value = ''; }
   loading.value = true;
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 400));
@@ -198,17 +210,25 @@ const loadProducts = async (reset = false) => {
     switch (currentPlatform.value) {
       case 'jd': res = await getJdRankList(params, { silent: true }); break;
       case 'pdd': res = await getPddGoodsList(params, { silent: true }); break;
-      case 'dy': res = await getDyKuList(params, { silent: true }); break;
+      case 'dy': res = await getDyKuList({ pageId: page.value, pageSize: 20 }, { silent: true }); break;
       default: res = await getTbGoodsList(params, { silent: true }); break;
     }
+    // 第三方透传通道（好单库等）失败时返回 {code:4xx/5xx,msg}，业务码非 0/200 视为失败
+    if (res && typeof res.code === 'number' && res.code !== 0 && res.code !== 200) {
+      throw new Error(res.msg || '商品加载失败');
+    }
     const d = res?.result ?? res?.data ?? [];
-    const list = Array.isArray(d) ? d : (d.list || d.content || d.rows || []);
+    const rawList = Array.isArray(d) ? d : (d.list || d.content || d.rows || []);
+    const list = normalizeProductList(currentPlatform.value, rawList);
     if (list.length < 20) hasMore.value = false;
     productList.value = reset ? list : [...productList.value, ...list];
     page.value++;
   } catch (e) {
     if (!productList.value.length) {
       productError.value = true;
+      productErrorText.value = currentPlatform.value === 'dy'
+        ? '抖音平台接口临时下线，切其他平台看看'
+        : (e?.message || '商品加载失败');
     } else {
       hasMore.value = false;
       uni.showToast({ title: '加载更多失败', icon: 'none' });

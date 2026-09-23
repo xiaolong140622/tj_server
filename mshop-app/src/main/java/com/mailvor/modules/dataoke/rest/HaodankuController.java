@@ -127,29 +127,24 @@ public class HaodankuController {
 
     @GetMapping(value = "/pdd/nav")
     public JSONObject pddNav() {
-        return restTemplate
-                .getForObject(PDD_NAV, JSONObject.class);
+        return safeGet(PDD_NAV, "pdd/nav");
     }
     @GetMapping(value = "/pdd/cate")
     public JSONObject pddCate() {
-        return restTemplate
-                .getForObject(PDD_CATE, JSONObject.class);
+        return safeGet(PDD_CATE, "pdd/cate");
     }
     @GetMapping(value = "/pdd/list")
     public JSONObject pddList(Integer cateId, Integer pageId) {
-        return restTemplate
-                .getForObject(String.format(PDD_LIST, cateId, pageId), JSONObject.class);
+        return safeGet(String.format(PDD_LIST, cateId, pageId), "pdd/list");
     }
 
     @GetMapping(value = "/dy/nav")
     public JSONObject dyNav() {
-        return restTemplate
-                .getForObject(DY_NAV + kuService.getKuCid(), JSONObject.class);
+        return safeGet(DY_NAV + kuService.getKuCid(), "dy/nav");
     }
     @GetMapping(value = "/dy/cate")
     public JSONObject dyCate() {
-        return restTemplate
-                .getForObject(DY_CATE + kuService.getKuCid(), JSONObject.class);
+        return safeGet(DY_CATE + kuService.getKuCid(), "dy/cate");
     }
     @GetMapping(value = "/dy/list")
     public JSONObject dyList(DyListParam param) {
@@ -157,8 +152,33 @@ public class HaodankuController {
         if(param.getFirstCid() != null){
             url = url + "&first_cids=" + param.getFirstCid();
         }
-        return restTemplate
-                .getForObject(url, JSONObject.class);
+        return safeGet(url, "dy/list");
+    }
+
+    /**
+     * 第三方渠道（好单库/抖音等）透传统一收口：上游超时或异常时返回业务码 503 的 JSON 信封，
+     * 而不是 500 whitelabel，前端可按 code!=200/0 走失败态与文案兜底。
+     */
+    private JSONObject safeGet(String url, String channel) {
+        try {
+            JSONObject result = restTemplate.getForObject(url, JSONObject.class);
+            if (result == null) {
+                log.warn("好单库渠道[{}]返回为空", channel);
+                return unavailable(channel);
+            }
+            return result;
+        } catch (Exception e) {
+            log.warn("好单库渠道[{}]调用失败:{}", channel, e.getMessage());
+            return unavailable(channel);
+        }
+    }
+
+    private JSONObject unavailable(String channel) {
+        JSONObject fail = new JSONObject();
+        fail.put("code", 503);
+        fail.put("msg", "商品服务暂时不可用，请稍后重试(" + channel + ")");
+        fail.put("data", new JSONArray());
+        return fail;
     }
 
 
@@ -241,7 +261,13 @@ public class HaodankuController {
             log.warn("好单库首页配置缺少 cid，跳过 banners/tiles 请求");
             return null;
         }
-        JSONObject origData = restTemplate.getForObject(BANNER_LIST + kuCid, JSONObject.class);
+        JSONObject origData;
+        try {
+            origData = restTemplate.getForObject(BANNER_LIST + kuCid, JSONObject.class);
+        } catch (Exception e) {
+            log.warn("好单库首页接口调用异常，cid={}, err={}", kuCid, e.getMessage());
+            return null;
+        }
         if(origData == null) {
             log.warn("好单库首页接口返回为空，cid={}", kuCid);
             return null;
