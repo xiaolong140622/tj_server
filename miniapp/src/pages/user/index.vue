@@ -548,6 +548,7 @@ onShow(() => {
   display: flex; align-items: center;
   height: 108rpx; padding: 0 32rpx;
   box-sizing: border-box;
+  transition: background-color 0.15s;
 }
 .menu-item::before {
   content: ''; position: absolute; left: 120rpx; right: 0; top: 0;
