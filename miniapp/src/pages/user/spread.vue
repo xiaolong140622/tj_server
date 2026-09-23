@@ -224,8 +224,8 @@ const loadFriends = async (reset = false) => {
   if (reset) { friendPage.value = 1; friendHasMore.value = true; friendList.value = []; }
   friendLoading.value = true;
   try {
-    // 好友 Tab = /spread/people?grade=1（与 peopleCount 同口径，PRD v1.2 §3）
-    const res = await getSpreadPeople({ page: friendPage.value, limit: PEOPLE_PAGE, grade: 1 }, { silent: true });
+    // 好友 Tab = /spread/people?grade=0（F-9 纠偏：后端枚举 0=一级直推/1=二级，与 peopleCount 同口径）
+    const res = await getSpreadPeople({ page: friendPage.value, limit: PEOPLE_PAGE, grade: 0 }, { silent: true });
     const d = res.result || res.data || {};
     const list = d.list || (Array.isArray(d) ? d : []);
     if (list.length < PEOPLE_PAGE) friendHasMore.value = false;
