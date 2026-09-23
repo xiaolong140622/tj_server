@@ -68,11 +68,8 @@ const onWxLogin = async () => {
     const data = res.result || res.data || {};
     if (data.token) {
       userStore.setLoginInfo(data.token, data.userInfo || {});
-      if (data.needBindPhone) {
-        uni.navigateTo({ url: '/pages/auth/index' });
-      } else {
-        uni.switchTab({ url: '/pages/index/index' });
-      }
+      // 服务器暂无短信通道，验证码绑定环节暂时关闭，直接进入首页
+      uni.switchTab({ url: '/pages/index/index' });
     } else {
       uni.showToast({ title: '登录失败', icon: 'none' });
     }
