@@ -52,8 +52,10 @@ import io.swagger.annotations.ApiOperation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
@@ -94,6 +96,9 @@ public class UserController {
     private final RedisUtils redisUtil;
 
     private final MwUserUnionService userUnionService;
+
+    @Value("${file.avatar}")
+    private String avatarFilePath;
 
     @Resource
     private MwUserBankService bankService;
@@ -376,6 +381,38 @@ public class UserController {
     }
     @AppLog(value = "用户修改信息", type = 1)
     @AuthCheck
+    @PostMapping("/user/avatar/upload")
+    @AuthCheck
+    @ApiOperation(value = "上传用户头像", notes = "保存至本地头像目录，经 /avatar/** 静态映射访问")
+    public ApiResult<Map<String, String>> uploadAvatar(@RequestPart MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return ApiResult.fail("文件为空");
+        }
+        if (file.getSize() > 5 * 1024 * 1024) {
+            return ApiResult.fail("图片不能超过5M");
+        }
+        String original = file.getOriginalFilename() == null ? "" : file.getOriginalFilename();
+        String ext = original.contains(".") ? original.substring(original.lastIndexOf(".")).toLowerCase() : ".png";
+        if (!Arrays.asList(".jpg", ".jpeg", ".png", ".gif", ".webp").contains(ext)) {
+            return ApiResult.fail("仅支持图片格式");
+        }
+        try {
+            Long uid = LocalUser.getUser().getUid();
+            String filename = uid + "_AVATAR_" + System.currentTimeMillis() + ext;
+            java.io.File dir = new java.io.File(avatarFilePath);
+            if (!dir.exists() && !dir.mkdirs()) {
+                return ApiResult.fail("头像目录创建失败");
+            }
+            file.transferTo(new java.io.File(dir, filename));
+            Map<String, String> data = new HashMap<>(2);
+            data.put("url", "/avatar/" + filename);
+            return ApiResult.ok(data);
+        } catch (Exception e) {
+            log.error("头像上传失败", e);
+            return ApiResult.fail("头像上传失败");
+        }
+    }
+
     @PostMapping("/user/edit")
     @ApiOperation(value = "用户修改信息",notes = "用修改信息")
     public ApiResult<String> edit(@Validated @RequestBody UserEditParam param){
