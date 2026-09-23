@@ -130,7 +130,7 @@ public class IndexController {
                 continue;
             }
             vo.setImageUrl(firstNotBlank(value.getString("imageUrl"), value.getString("picUrl"),
-                    value.getString("image"), value.getString("img")));
+                    value.getString("image"), value.getString("img"), value.getString("pic")));
             vo.setTitle(firstNotBlank(value.getString("title"), value.getString("name")));
             String target = firstNotBlank(value.getString("target"), value.getString("url"),
                     value.getString("link"));
