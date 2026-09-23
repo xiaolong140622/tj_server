@@ -72,7 +72,9 @@ public class UserRewardSummaryServiceImpl implements UserRewardSummaryService {
         tbWrapper.eq(MailvorTbOrder::getUid, uid)
                 .eq(MailvorTbOrder::getIsDel, CommonEnum.DEL_STATUS_0.getValue())
                 .eq(MailvorTbOrder::getInnerType, 0)
-                .notIn(MailvorTbOrder::getTkStatus, TB_SETTLED_ORDER_STATUS, OrderUtil.TB_NOT_VALID_ORDER_STATUS);
+                // NOT IN 在 SQL 三值逻辑下会排除 NULL，需显式放行（NULL 视为未结算）
+                .and(w -> w.isNull(MailvorTbOrder::getTkStatus)
+                        .or().notIn(MailvorTbOrder::getTkStatus, TB_SETTLED_ORDER_STATUS, OrderUtil.TB_NOT_VALID_ORDER_STATUS));
         fee += nullToZero(tbOrderMapper.sumFee(tbWrapper));
 
         LambdaQueryWrapper<MailvorJdOrder> jdWrapper = new LambdaQueryWrapper<>();
@@ -95,14 +97,18 @@ public class UserRewardSummaryServiceImpl implements UserRewardSummaryService {
                 .eq(MailvorVipOrder::getIsDel, CommonEnum.DEL_STATUS_0.getValue())
                 .eq(MailvorVipOrder::getInnerType, 0)
                 .eq(MailvorVipOrder::getSettled, 0)
-                .ne(MailvorVipOrder::getOrderSubStatusName, OrderUtil.VIP_NOT_VALID_ORDER_STATUS);
+                // <> 在 SQL 三值逻辑下会排除 NULL，NULL 子状态名视为未失效
+                .and(w -> w.isNull(MailvorVipOrder::getOrderSubStatusName)
+                        .or().ne(MailvorVipOrder::getOrderSubStatusName, OrderUtil.VIP_NOT_VALID_ORDER_STATUS));
         fee += nullToZero(vipOrderMapper.sumFee(vipWrapper));
 
         LambdaQueryWrapper<MailvorDyOrder> dyWrapper = new LambdaQueryWrapper<>();
         dyWrapper.eq(MailvorDyOrder::getUid, uid)
                 .eq(MailvorDyOrder::getIsDel, CommonEnum.DEL_STATUS_0.getValue())
                 .eq(MailvorDyOrder::getInnerType, 0)
-                .ne(MailvorDyOrder::getFlowPoint, OrderUtil.DY_NOT_VALID_ORDER_STATUS)
+                // flow_point 可能为 NULL（API 缺字段/历史数据），SQL 三值逻辑下需显式放行
+                .and(w -> w.isNull(MailvorDyOrder::getFlowPoint)
+                        .or().ne(MailvorDyOrder::getFlowPoint, OrderUtil.DY_NOT_VALID_ORDER_STATUS))
                 .isNull(MailvorDyOrder::getSettleTime);
         fee += nullToZero(dyOrderMapper.sumFee(dyWrapper));
 
