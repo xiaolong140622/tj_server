@@ -10,9 +10,11 @@
         </view>
         <view class="poster-body">
           <text class="poster-invite">{{ COPYWRITING.SHARE_POSTER_TITLE }}</text>
-          <view class="qrcode-wrap">
-            <image class="poster-qrcode" :src="posterQrcode" mode="aspectFit" v-if="posterQrcode" />
-            <view v-else class="poster-placeholder"><text>海报生成中...</text></view>
+          <view class="qrcode-wrap" @click="retryCode">
+            <image class="poster-qrcode" :src="posterQrcode" mode="aspectFit" v-if="posterQrcode && !codeError" />
+            <view v-else class="poster-placeholder poster-placeholder--error">
+              <text>{{ codeError ? '二维码加载失败，点击刷新' : '海报生成中...' }}</text>
+            </view>
           </view>
           <text class="poster-guide">长按识别小程序码</text>
         </view>
@@ -34,39 +36,69 @@
 import { ref } from 'vue';
 import { onShow, onShareAppMessage } from '@dcloudio/uni-app';
 import { getSpreadCode } from '../../api/share';
+import { toImageUri, sniffImageFormat } from '../../utils/qr';
 import { COPYWRITING } from '../../utils/constants';
 import { mockSpreadCode } from '../../mock/index';
 
 const USE_MOCK = false;
 
 const posterQrcode = ref('');
+const codeError = ref(false);
 const canvasW = 375;
 const canvasH = 600;
 
-onShow(async () => {
+// /spread/code 契约（JAVA seq-177/202）：qrBase64 实为 JPEG，按魔数嗅探格式；null=上游生成失败→错误态点击重试，禁止 mock 假码
+const loadCode = async () => {
+  codeError.value = false;
+  posterQrcode.value = '';
   let qrcode = '';
   if (USE_MOCK) {
-    const data = mockSpreadCode();
-    qrcode = data.qrcode;
+    qrcode = mockSpreadCode().qrcode;
   } else {
     try {
-      const res = await getSpreadCode();
-      const d = res.result || res.data;
-      qrcode = d?.code || d?.qrcode || '';
+      const res = await getSpreadCode({ silent: true });
+      const d = res.result || res.data || {};
+      if (d.qrBase64) {
+        qrcode = toImageUri(d.qrBase64);
+      } else {
+        codeError.value = true;
+        return;
+      }
     } catch (e) {
-      const data = mockSpreadCode();
-      qrcode = data.qrcode;
+      codeError.value = true; // 失败走错误态+点击重试（与 spread.vue 邀请码口径一致）
+      return;
     }
   }
   posterQrcode.value = qrcode;
   drawPoster(qrcode);
-});
+};
+
+const retryCode = () => {
+  if (codeError.value) loadCode();
+};
+
+onShow(() => loadCode());
 
 onShareAppMessage(() => ({
   title: COPYWRITING.SHARE_POSTER_TITLE,
 }));
 
+// canvas drawImage 不支持 data URI，先落本地临时文件
+const ensureLocalQr = (src) => {
+  if (!src) return '';
+  if (!String(src).startsWith('data:')) return src;
+  try {
+    const fp = `${wx.env.USER_DATA_PATH}/poster_invite_qr.${sniffImageFormat(src).ext}`;
+    const buf = uni.base64ToArrayBuffer(String(src).replace(/^data:image\/\w+;base64,/, ''));
+    uni.getFileSystemManager().writeFileSync(fp, buf);
+    return fp;
+  } catch (e) {
+    return '';
+  }
+};
+
 const drawPoster = (qrcodeUrl) => {
+  const qrPath = ensureLocalQr(qrcodeUrl);
   const ctx = uni.createCanvasContext('posterCanvas');
   const w = canvasW;
   const h = canvasH;
@@ -107,14 +139,18 @@ const drawPoster = (qrcodeUrl) => {
   ctx.fillText('实际以平台结算为准', w / 2, 564);
 
   ctx.draw(false, () => {
-    if (qrcodeUrl) {
-      ctx.drawImage(qrcodeUrl, (w - 160) / 2, 180, 160, 160);
+    if (qrPath) {
+      ctx.drawImage(qrPath, (w - 160) / 2, 180, 160, 160);
       ctx.draw(true);
     }
   });
 };
 
 const savePoster = () => {
+  if (codeError.value || !posterQrcode.value) {
+    uni.showToast({ title: '二维码未就绪，点击重试', icon: 'none' });
+    return;
+  }
   uni.canvasToTempFilePath({
     canvasId: 'posterCanvas',
     success: (res) => {
@@ -171,6 +207,7 @@ const savePoster = () => {
 }
 .poster-qrcode { width: 100%; height: 100%; }
 .poster-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: #999; font-size: 24rpx; }
+.poster-placeholder--error { color: #FF6B35; background: #FFF1EC; }
 .poster-guide { font-size: 24rpx; color: #999; margin-top: 20rpx; }
 .poster-tip { font-size: 22rpx; color: #bbb; padding: 20rpx 0 28rpx; }
 

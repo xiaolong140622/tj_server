@@ -19,8 +19,18 @@ export const useAppStore = defineStore('app', () => {
     return v;
   };
 
+  // 订单「已到账」入口 → 账单页 type=extract 定位筛选（PRD v1.2 §1/B5；spread 同款全局状态传参）
+  const billFilterIntent = ref('');
+  const setBillFilterIntent = (t) => { billFilterIntent.value = t; };
+  const consumeBillFilterIntent = () => {
+    const v = billFilterIntent.value;
+    billFilterIntent.value = '';
+    return v;
+  };
+
   return {
-    currentPlatform, bannerList, hotKeywords, spreadTabIntent,
+    currentPlatform, bannerList, hotKeywords, spreadTabIntent, billFilterIntent,
     setPlatform, setBanner, setHotKeywords, setSpreadTabIntent, consumeSpreadTabIntent,
+    setBillFilterIntent, consumeBillFilterIntent,
   };
 });

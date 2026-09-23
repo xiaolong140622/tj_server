@@ -73,7 +73,13 @@
         </view>
       </view>
       <view class="ink-row" @click="onAssetClick">
-        <view class="ink-col" v-for="col in rewardCols" :key="col.label">
+        <view
+          class="ink-col"
+          v-for="col in rewardCols"
+          :key="col.label"
+          :hover-class="col.intent ? 'ink-col-hover' : 'none'"
+          @click.stop="onColClick(col)"
+        >
           <template v-if="rewardLoading && !reward">
             <view class="skel-dark skel-value"></view>
             <view class="skel-dark skel-label"></view>
@@ -198,7 +204,8 @@ const rewardError = ref(false);
 
 const rewardCols = computed(() => [
   { label: '待结算', value: reward.value ? reward.value.pending : null },
-  { label: '已到账', value: reward.value ? reward.value.settled : null },
+  // PRD v1.2 §1/B5：「已到账」属账单域 → 点击跳账单并定位 type=extract 筛选
+  { label: '已到账', value: reward.value ? reward.value.settled : null, intent: 'extract' },
   { label: '累计奖励', value: reward.value ? reward.value.total : null },
 ]);
 const displayValue = (col) => {
@@ -273,6 +280,17 @@ const goPage = (url) => {
 const onAssetClick = () => {
   if (!isLoggedIn.value) { goLogin(); return; }
   if (rewardError.value && !rewardLoading.value) { loadReward(); }
+};
+// 三格中「已到账」带 intent：跳账单定位筛选；其余格保持整行原行为（登录/失败重试）
+const onColClick = (col) => {
+  if (!isLoggedIn.value) { goLogin(); return; }
+  if (col.intent) {
+    if (rewardError.value || rewardLoading.value) return;
+    appStore.setBillFilterIntent(col.intent);
+    uni.navigateTo({ url: '/pages/user/bill' });
+    return;
+  }
+  if (rewardError.value && !rewardLoading.value) loadReward();
 };
 const onBillClick = () => {
   if (!isLoggedIn.value) { goLogin(); return; }
@@ -423,7 +441,8 @@ onShow(() => {
 .ink-withdraw-text { font-size: 26rpx; font-weight: bold; color: #fff; margin-right: 6rpx; }
 
 .ink-row { display: flex; align-items: center; padding: 24rpx 0 28rpx; }
-.ink-col { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; }
+.ink-col { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; border-radius: 16rpx; }
+.ink-col-hover { background: rgba(255, 255, 255, 0.1); }
 .ink-col + .ink-col::before {
   content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
   width: 1rpx; height: 56rpx; background: rgba(255, 255, 255, 0.12);

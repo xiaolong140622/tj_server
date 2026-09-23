@@ -1,5 +1,8 @@
 <template>
   <view class="page-detail">
+    <!-- F-4（测试基线 v3）：加载失败走错误态+重试，禁止 mock 假数据回落 -->
+    <view v-if="loadError" class="detail-error"><FailRetry @retry="loadDetail" /></view>
+    <block v-else>
     <view class="detail-swiper-wrap">
       <swiper class="detail-swiper" autoplay circular :duration="500" @change="onSwiperChange">
         <swiper-item v-for="(img, idx) in images" :key="idx">
@@ -66,8 +69,9 @@
         <text class="content-placeholder-text">暂无详情</text>
       </view>
     </view>
+    </block>
 
-    <view class="bottom-bar">
+    <view class="bottom-bar" v-if="!loadError">
       <view class="bottom-share" @click="onShare" hover-class="bottom-btn--hover">
         <text class="bottom-share-icon">&#x1F4E4;</text>
         <text class="bottom-share-text">{{ COPYWRITING.SHARE_BUTTON }}</text>
@@ -85,6 +89,7 @@ import { onLoad, onShareAppMessage } from '@dcloudio/uni-app';
 import { getTbGoodsDetail, getTbGoodsWord, getJdGoodsDetail, getJdGoodsWord, getPddGoodsDetail, getPddGoodsWord, getDyGoodsDetail, getDyGoodsWord } from '../../api/product';
 import { formatMoney } from '../../utils/format';
 import { COPYWRITING, PLATFORM } from '../../utils/constants';
+import FailRetry from '../../components/FailRetry.vue';
 import { mockProductDetail } from '../../mock/index';
 
 const USE_MOCK = false;
@@ -94,6 +99,7 @@ const images = ref([]);
 const platform = ref('tb');
 const productId = ref('');
 const currentIndex = ref(0);
+const loadError = ref(false);
 
 const platformInfo = computed(() => PLATFORM[platform.value.toUpperCase()] || PLATFORM.TB);
 const platformName = computed(() => platformInfo.value.label);
@@ -125,23 +131,22 @@ const loadDetail = async () => {
     images.value = data.images.split('|').filter(Boolean);
     return;
   }
+  loadError.value = false;
   const params = { id: productId.value };
+  const opts = { silent: true }; // 错误由本页 FailRetry 承载，不重复弹 toast
   try {
     let res;
     switch (platform.value) {
-      case 'tb': res = await getTbGoodsDetail(params); break;
-      case 'jd': res = await getJdGoodsDetail(params); break;
-      case 'pdd': res = await getPddGoodsDetail(params); break;
-      case 'dy': res = await getDyGoodsDetail(params); break;
+      case 'tb': res = await getTbGoodsDetail(params, opts); break;
+      case 'jd': res = await getJdGoodsDetail(params, opts); break;
+      case 'pdd': res = await getPddGoodsDetail(params, opts); break;
+      case 'dy': res = await getDyGoodsDetail(params, opts); break;
     }
     const data = res?.result || res?.data || {};
     product.value = data;
     images.value = data.images || data.pics ? (data.images || data.pics).split('|').filter(Boolean) : (data.mainPic ? [data.mainPic] : []);
   } catch (e) {
-    const data = mockProductDetail(platform.value);
-    product.value = data;
-    images.value = data.images.split('|').filter(Boolean);
-    uni.showToast({ title: '加载失败，显示示例数据', icon: 'none' });
+    loadError.value = true; // F-4：错误态+点击重试（FailRetry），正式链路禁 mock 假数据
   }
 };
 
@@ -153,11 +158,12 @@ const onBuy = async () => {
   try {
     let res;
     const params = { id: productId.value };
+    const opts = { silent: true }; // 本页统一「获取链接失败」提示，避免双 toast
     switch (platform.value) {
-      case 'tb': res = await getTbGoodsWord(params); break;
-      case 'jd': res = await getJdGoodsWord(params); break;
-      case 'pdd': res = await getPddGoodsWord(params); break;
-      case 'dy': res = await getDyGoodsWord(params); break;
+      case 'tb': res = await getTbGoodsWord(params, opts); break;
+      case 'jd': res = await getJdGoodsWord(params, opts); break;
+      case 'pdd': res = await getPddGoodsWord(params, opts); break;
+      case 'dy': res = await getDyGoodsWord(params, opts); break;
     }
     const data = res?.result || res?.data || {};
     const url = data.clickUrl || data.url || data.shortUrl || '';
@@ -413,6 +419,8 @@ onLoad((opts) => {
   font-size: 26rpx;
   color: #ccc;
 }
+
+.detail-error { padding: 120rpx 24rpx 0; }
 
 .bottom-bar {
   position: fixed;

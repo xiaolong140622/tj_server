@@ -70,6 +70,9 @@ import FailRetry from '../../components/FailRetry.vue';
 import { getIntegralList } from '../../api/user';
 import { formatAmount } from '../../utils/format';
 import { BILL_TYPE_LABELS, BILL_DEFAULT_LABEL, BILL_FILTER_TABS } from '../../utils/constants';
+import { useAppStore } from '../../store/app';
+
+const appStore = useAppStore();
 import { ICONS } from '../../utils/icons';
 
 const tabs = BILL_FILTER_TABS;
@@ -164,7 +167,12 @@ const switchTab = (tab) => {
 
 const goHome = () => uni.switchTab({ url: '/pages/index/index' });
 
-onShow(() => loadBills(true));
+onShow(() => {
+  // 「已到账」等入口跳入时定位筛选（PRD v1.2 §1/B5）：消费即清空的全局意图态
+  const intent = appStore.consumeBillFilterIntent();
+  if (intent && tabs.some((t) => t.id === intent)) activeTabId.value = intent;
+  loadBills(true);
+});
 </script>
 
 <style scoped>

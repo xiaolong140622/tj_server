@@ -150,6 +150,7 @@ import Empty from '../../components/Empty.vue';
 import FailRetry from '../../components/FailRetry.vue';
 import PeopleRow from '../../components/PeopleRow.vue';
 import { getSpreadCode, getSpreadPeople, getSpreadSummary } from '../../api/share';
+import { toImageUri } from '../../utils/qr';
 import { formatAmount } from '../../utils/format';
 import { COPYWRITING } from '../../utils/constants';
 import { ICONS } from '../../utils/icons';
@@ -200,7 +201,8 @@ const loadPeople = async (reset = false) => {
   if (reset) peopleList.value = [];
   peopleLoading.value = true;
   try {
-    const res = await getSpreadPeople({ page: 1, limit: PEOPLE_PAGE });
+    // 推广用户榜 = /spread/people 同源全量 + sort（PRD v1.2 §3；sort 取值待 JAVA 核对，暂按佣金维度）
+    const res = await getSpreadPeople({ page: 1, limit: PEOPLE_PAGE, sort: 'commission' }, { silent: true });
     const d = res.result || res.data || {};
     peopleList.value = d.list || (Array.isArray(d) ? d : []);
     peopleError.value = false;
@@ -222,7 +224,8 @@ const loadFriends = async (reset = false) => {
   if (reset) { friendPage.value = 1; friendHasMore.value = true; friendList.value = []; }
   friendLoading.value = true;
   try {
-    const res = await getSpreadPeople({ page: friendPage.value, limit: PEOPLE_PAGE });
+    // 好友 Tab = /spread/people?grade=1（与 peopleCount 同口径，PRD v1.2 §3）
+    const res = await getSpreadPeople({ page: friendPage.value, limit: PEOPLE_PAGE, grade: 1 }, { silent: true });
     const d = res.result || res.data || {};
     const list = d.list || (Array.isArray(d) ? d : []);
     if (list.length < PEOPLE_PAGE) friendHasMore.value = false;
@@ -252,7 +255,7 @@ const loadCode = async () => {
     const d = res.result || res.data || {};
     inviteCodeText.value = d.code || '';
     if (d.qrBase64) {
-      inviteQr.value = String(d.qrBase64).startsWith('data:') ? d.qrBase64 : `data:image/png;base64,${d.qrBase64}`;
+      inviteQr.value = toImageUri(d.qrBase64);
     } else {
       inviteQr.value = '';
       codeError.value = true;
