@@ -297,6 +297,11 @@ public class MwUserBillServiceImpl extends BaseServiceImpl<UserBillMapper, MwUse
      */
     @Override
     public Map<String, Object> userBillList(Long uid,String category,String type, String platform, int page,int limit, Integer unlockStatus) {
+        return userBillList(uid, category, type, platform, page, limit, unlockStatus, null);
+    }
+
+    @Override
+    public Map<String, Object> userBillList(Long uid,String category,String type, String platform, int page,int limit, Integer unlockStatus, String sourceType) {
        LambdaQueryWrapper<MwUserBill> wrapper = new LambdaQueryWrapper<>();
         wrapper
                 .eq(MwUserBill::getUid,uid)
@@ -307,6 +312,12 @@ public class MwUserBillServiceImpl extends BaseServiceImpl<UserBillMapper, MwUse
         }
         if(StringUtils.isNotBlank(platform)) {
             wrapper.eq(MwUserBill::getPlatform,platform);
+        }
+        //sourceType: self=自购奖励(orig_uid=uid) share=他人订单分享奖励(orig_uid<>uid)
+        if("self".equals(sourceType)) {
+            wrapper.apply("orig_uid = uid");
+        } else if("share".equals(sourceType)) {
+            wrapper.apply("(orig_uid IS NULL OR orig_uid <> uid)");
         }
 
         if(unlockStatus != null) {

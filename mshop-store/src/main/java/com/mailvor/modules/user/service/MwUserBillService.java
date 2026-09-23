@@ -94,6 +94,8 @@ public interface MwUserBillService extends BaseService<MwUserBill>{
      */
     Map<String, Object> userBillList(Long uid,String category,String type, String platform, int page,int limit, Integer unlockStatus);
 
+    Map<String, Object> userBillList(Long uid,String category,String type, String platform, int page,int limit, Integer unlockStatus, String sourceType);
+
     /**
     * 查询数据分页
     * @param criteria 条件

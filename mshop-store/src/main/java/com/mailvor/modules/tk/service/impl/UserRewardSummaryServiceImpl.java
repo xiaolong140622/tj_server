@@ -1,6 +1,7 @@
 package com.mailvor.modules.tk.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.mailvor.enums.CommonEnum;
 import com.mailvor.modules.tk.domain.MailvorDyOrder;
 import com.mailvor.modules.tk.domain.MailvorJdOrder;
@@ -14,7 +15,10 @@ import com.mailvor.modules.tk.service.mapper.MailvorPddOrderMapper;
 import com.mailvor.modules.tk.service.mapper.MailvorTbOrderMapper;
 import com.mailvor.modules.tk.service.mapper.MailvorVipOrderMapper;
 import com.mailvor.modules.tk.vo.RewardSummaryVo;
+import com.mailvor.modules.tk.vo.SpreadSummaryVo;
+import com.mailvor.modules.user.domain.MwUser;
 import com.mailvor.modules.user.service.mapper.UserBillMapper;
+import com.mailvor.modules.user.service.mapper.UserMapper;
 import com.mailvor.utils.OrderUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -52,6 +56,8 @@ public class UserRewardSummaryServiceImpl implements UserRewardSummaryService {
     private MailvorVipOrderMapper vipOrderMapper;
     @Resource
     private MailvorDyOrderMapper dyOrderMapper;
+    @Resource
+    private UserMapper userMapper;
 
     @Override
     public RewardSummaryVo getSummary(Long uid, BigDecimal nowMoney) {
@@ -59,6 +65,20 @@ public class UserRewardSummaryServiceImpl implements UserRewardSummaryService {
         vo.setTotalReward(round2(userBillMapper.sumBrokeragePrice(uid)));
         vo.setPendingReward(round2(sumPendingFee(uid)));
         vo.setSettledReward(nowMoney == null ? BigDecimal.ZERO : round2(nowMoney.doubleValue()));
+        return vo;
+    }
+
+    @Override
+    public SpreadSummaryVo getSpreadSummary(Long uid) {
+        SpreadSummaryVo vo = new SpreadSummaryVo();
+        // 有效好友数 = 直推一级用户数
+        vo.setPeopleCount(userMapper.selectCount(Wrappers.<MwUser>lambdaQuery()
+                .eq(MwUser::getSpreadUid, uid)
+                .eq(MwUser::getIsDel, CommonEnum.DEL_STATUS_0.getValue())));
+        // 归因订单数 = 本人+直推下级 六平台有效订单
+        vo.setOrderCount(userBillMapper.countSpreadOrders(uid));
+        // 累计佣金 = 与 /user/reward/summary totalReward 同源
+        vo.setCommission(round2(userBillMapper.sumBrokeragePrice(uid)));
         return vo;
     }
 

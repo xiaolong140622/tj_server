@@ -111,12 +111,13 @@ public class UserBillController {
     public ApiResult<Object> userInfo(@RequestParam(value = "page",defaultValue = "1") int page,
                                       @RequestParam(value = "limit",defaultValue = "10") int limit,
                                       @RequestParam(value = "category",defaultValue = "integral") String category,
-                                      @RequestParam(value = "type") String type,
-                                      @RequestParam(value = "platform") String platform,
+                                      @RequestParam(value = "type",required = false,defaultValue = "") String type,
+                                      @RequestParam(value = "platform",required = false,defaultValue = "") String platform,
+                                      @RequestParam(value = "sourceType",required = false,defaultValue = "") String sourceType,
                                       @RequestParam(value = "unlockStatus", required = false) Integer unlockStatus){
         Long uid = LocalUser.getUser().getUid();
         Map<String, Object> map = userBillService.userBillList(uid, category, type, platform
-                ,page, limit, unlockStatus);
+                ,page, limit, unlockStatus, sourceType);
         Long total = (Long) map.get("total");
         //todo 分页貌似没实现
         Long totalPage = (Long) map.get("totalPage");

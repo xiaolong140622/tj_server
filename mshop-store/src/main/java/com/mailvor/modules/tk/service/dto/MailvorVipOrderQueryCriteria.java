@@ -19,6 +19,10 @@ public class MailvorVipOrderQueryCriteria extends MailvorOrderQueryCriteria{
     @Query
     private String orderSubStatusName;
 
+    /** 结算状态筛选：0=未结算(待结算)，1=已结算 */
+    @Query
+    private Integer settled;
+
     @Query(blurry = "orderSn,detailList,uid")
     private String value;
 

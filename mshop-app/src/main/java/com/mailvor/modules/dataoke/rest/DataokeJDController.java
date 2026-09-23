@@ -8,6 +8,8 @@ import com.mailvor.modules.tk.param.GoodsJdWordParam;
 import com.mailvor.modules.tk.param.jd.GoodsListJDParam;
 import com.mailvor.modules.tk.service.DataokeService;
 import com.mailvor.modules.tk.service.JdService;
+import com.mailvor.modules.tk.service.KuService;
+import com.mailvor.modules.tk.vo.jd.JdKuSearchListVO;
 import com.mailvor.modules.tk.vo.jd.JdUnionCommonGoodsListVO;
 import com.mailvor.modules.tk.vo.jd.JdUnionCommonGoodsWordVO;
 import com.mailvor.modules.user.domain.MwUser;
@@ -34,6 +36,19 @@ public class DataokeJDController {
 
     @Resource
     private JdService jdService;
+
+    @Resource
+    private KuService kuService;
+
+    /**
+     * 京东商品关键词搜索（好单库 jd_goods_search 透传）
+     * 入参：keyword 必填，pageId 页码(从1)、pageSize 页大小(默认10)、sortName/sort 排序
+     * 返回 JdKuSearchListVO：{code,msg,data:[...]} 上游字段透传，code!=200 视为失败（前端错误态，不得回落 mock）
+     */
+    @GetMapping(value = "/goods/search")
+    public JdKuSearchListVO goodsSearch(GoodsListJDParam param) {
+        return kuService.searchJD(param);
+    }
 
     /**
      * 获取京东商品详情

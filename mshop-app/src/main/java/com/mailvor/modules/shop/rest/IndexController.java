@@ -17,11 +17,14 @@ import com.mailvor.modules.canvas.service.StoreCanvasService;
 import com.mailvor.modules.mp.service.MwWechatLiveService;
 import com.mailvor.modules.product.service.MwStoreProductService;
 import com.mailvor.modules.product.vo.MwSystemStoreQueryVo;
+import com.mailvor.modules.shop.domain.MwSystemGroupData;
 import com.mailvor.modules.shop.param.MwSystemStoreQueryParam;
 import com.mailvor.modules.shop.service.MwAppVersionService;
 import com.mailvor.modules.shop.service.MwSystemGroupDataService;
 import com.mailvor.modules.shop.service.MwSystemStoreService;
+import com.mailvor.modules.shop.vo.HomeBannerVo;
 import com.mailvor.modules.shop.vo.IndexVo;
+import com.mailvor.enums.CommonEnum;
 import com.mailvor.utils.FileUtil;
 import com.mailvor.utils.RedisUtil;
 import com.mailvor.utils.ShopKeyUtils;
@@ -104,6 +107,51 @@ public class IndexController {
             stringList.add(object.getString("title"));
         }
         return ApiResult.ok(stringList);
+    }
+
+    /**
+     * 首页轮播图统一契约（运营在后台 mshop_home_banner 单页配置维护）
+     * value JSON 支持键：imageUrl(兼容 picUrl/image/img)、title(兼容 name)、type、target(兼容 url)；
+     * type 缺省时按 target 推断：http(s)→h5，pages/ 开头→page，其余→h5
+     */
+    @GetMapping("/home/banner")
+    @ApiOperation(value = "首页轮播图",notes = "统一契约 {id,imageUrl,title,type,target}")
+    public ApiResult<List<HomeBannerVo>> homeBanner(){
+        LambdaQueryWrapper<MwSystemGroupData> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(MwSystemGroupData::getGroupName, ShopConstants.MSHOP_HOME_BANNER)
+                .eq(MwSystemGroupData::getStatus, CommonEnum.SHOW_STATUS_1.getValue())
+                .orderByDesc(MwSystemGroupData::getSort);
+        List<HomeBannerVo> list = new ArrayList<>();
+        for (MwSystemGroupData data : systemGroupDataService.list(wrapper)) {
+            HomeBannerVo vo = new HomeBannerVo();
+            vo.setId(data.getId());
+            JSONObject value = JSONObject.parseObject(data.getValue());
+            if (value == null) {
+                continue;
+            }
+            vo.setImageUrl(firstNotBlank(value.getString("imageUrl"), value.getString("picUrl"),
+                    value.getString("image"), value.getString("img")));
+            vo.setTitle(firstNotBlank(value.getString("title"), value.getString("name")));
+            String target = firstNotBlank(value.getString("target"), value.getString("url"),
+                    value.getString("link"));
+            vo.setTarget(target == null ? "" : target);
+            String type = value.getString("type");
+            if (type == null || type.trim().isEmpty()) {
+                type = target != null && target.startsWith("pages/") ? "page" : "h5";
+            }
+            vo.setType(type);
+            list.add(vo);
+        }
+        return ApiResult.ok(list);
+    }
+
+    private static String firstNotBlank(String... values) {
+        for (String v : values) {
+            if (v != null && !v.trim().isEmpty()) {
+                return v;
+            }
+        }
+        return null;
     }
 
 

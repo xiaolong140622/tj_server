@@ -70,9 +70,37 @@ public interface UserBillMapper extends CoreMapper<MwUserBill> {
     double sumRechargePrice(@Param("uid") Long uid);
 
     @Select("select IFNULL(sum(number),0) from mw_user_bill " +
-            "where status=1 and type='brokerage' and pm=1 and category='now_money' " +
+            "where status=1 and type in ('brokerage','retail') and pm=1 and category='now_money' " +
             "and uid=#{uid}")
     double sumBrokeragePrice(@Param("uid") Long uid);
+
+    /**
+     * 推广归因有效订单数：本人+直推下级，排除失效/退款订单与已删除
+     */
+    @Select("select ifnull(sum(c),0) from (" +
+            "select count(*) c from mw_order_tb o where o.is_del=0 and o.inner_type=0 " +
+            "and (o.tk_status is null or (o.tk_status<>13 and o.tk_status<>2)) " +
+            "and (o.refund_tag is null or o.refund_tag<>1) " +
+            "and (o.uid=#{uid} or o.uid in (select mu.uid from mw_user mu where mu.spread_uid=#{uid})) " +
+            "union all " +
+            "select count(*) c from mw_order_jd o where o.is_del=0 and o.inner_type=0 and o.valid_code in (16,17) " +
+            "and (o.uid=#{uid} or o.uid in (select mu.uid from mw_user mu where mu.spread_uid=#{uid})) " +
+            "union all " +
+            "select count(*) c from mw_order_pdd o where o.is_del=0 and o.inner_type=0 and o.order_status in (0,1,2,3,5) " +
+            "and (o.uid=#{uid} or o.uid in (select mu.uid from mw_user mu where mu.spread_uid=#{uid})) " +
+            "union all " +
+            "select count(*) c from mw_order_vip o where o.is_del=0 and o.inner_type=0 " +
+            "and (o.order_sub_status_name is null or o.order_sub_status_name<>'已失效') " +
+            "and (o.uid=#{uid} or o.uid in (select mu.uid from mw_user mu where mu.spread_uid=#{uid})) " +
+            "union all " +
+            "select count(*) c from mw_order_dy o where o.is_del=0 and o.inner_type=0 " +
+            "and (o.flow_point is null or o.flow_point<>'REFUND') " +
+            "and (o.uid=#{uid} or o.uid in (select mu.uid from mw_user mu where mu.spread_uid=#{uid})) " +
+            "union all " +
+            "select count(*) c from mw_order_mt o where o.is_del=0 and o.item_status in (0,1) " +
+            "and (o.uid=#{uid} or o.uid in (select mu.uid from mw_user mu where mu.spread_uid=#{uid})) " +
+            ") t")
+    long countSpreadOrders(@Param("uid") Long uid);
 
 
     @Select("select IFNULL(sum(number),0) from mw_user_bill " +

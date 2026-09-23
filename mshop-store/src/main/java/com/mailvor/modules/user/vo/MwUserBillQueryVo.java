@@ -49,6 +49,9 @@ public class MwUserBillQueryVo implements Serializable {
     /** 明细类型 */
     private String type;
 
+    /** 平台：tb/jd/pdd/dy/vip/mt，非平台类账单为空 */
+    private String platform;
+
     private Date orderCreateTime;
 
 
