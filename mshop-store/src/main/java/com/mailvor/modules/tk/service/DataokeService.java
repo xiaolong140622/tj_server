@@ -321,7 +321,17 @@ public class DataokeService {
         if (StringUtils.isNotBlank(goodsId) && !"0".equals(goodsId) && !goodsId.equals(itemId)) {
             request.setSkuIds(goodsId);
         }
-        return DtkResponseConverter.toFullJsonObject(dtkApiClient.execute(request));
+        try {
+            return DtkResponseConverter.toFullJsonObject(dtkApiClient.execute(request));
+        } catch (Exception e) {
+            // 上游异常时 SDK 内部 buildFail 会因结果枚举为空抛 NPE，收口为 {code:-1,msg} 信封（同 DtkResponseConverter 失败形状），
+            // 前端 F-11 兜底链据此回退 ku 通道；不再冒泡成 500「服务器错误」
+            log.warn("京东详情DTK通道调用失败: {}", e.getMessage());
+            JSONObject errorObj = new JSONObject();
+            errorObj.put("code", -1);
+            errorObj.put("msg", "京东详情上游异常");
+            return errorObj;
+        }
     }
 
     public JSONObject goodsWordJD(String itemUrl, String couponUrl, String pid) {
