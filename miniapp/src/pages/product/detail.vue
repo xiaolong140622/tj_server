@@ -33,7 +33,10 @@
         </view>
       </view>
       <view class="commission-row">
-        <!-- TODO(B-2 挂起·管理 seq-338/350)：补贴三字段展示位（C-1 冻结稿字段名放行后接） -->
+        <!-- B-2 补贴三字段（冻结契约 jd-channel-contract-v1.md）：null 即隐藏，禁 0 填充 -->
+        <view class="subsidy-chips" v-if="subsidyList.length">
+          <text class="subsidy-chip" v-for="t in subsidyList" :key="t.key">{{ t.label }}</text>
+        </view>
         <view class="commission-box">
           <text class="commission-label">{{ COPYWRITING.COMMISSION_LABEL }}</text>
           <text class="commission-value">¥{{ commissionAmount }}</text>
@@ -89,6 +92,7 @@ import { ref, computed } from 'vue';
 import { onLoad, onShareAppMessage } from '@dcloudio/uni-app';
 import { getTbGoodsDetail, getTbGoodsWord, getJdGoodsDetail, getJdGoodsWord, getJdKuGoodsDetail, getPddGoodsDetail, getPddGoodsWord, getDyGoodsDetail, getDyGoodsWord } from '../../api/product';
 import { formatMoney } from '../../utils/format';
+import { subsidyTags as getSubsidyTags } from '../../utils/subsidy';
 import { COPYWRITING, PLATFORM } from '../../utils/constants';
 import FailRetry from '../../components/FailRetry.vue';
 import { mockProductDetail } from '../../mock/index';
@@ -120,6 +124,9 @@ const commissionAmount = computed(() => {
   const c = Number(product.value.commission || product.value.estimateCommission || 0);
   return (c * 0.8).toFixed(2);
 });
+
+// B-2 补贴三字段（冻结契约）：null 即隐藏，禁 0 填充
+const subsidyList = computed(() => getSubsidyTags(product.value));
 
 const onSwiperChange = (e) => {
   currentIndex.value = e.detail.current;
@@ -328,6 +335,19 @@ onLoad((opts) => {
   margin-top: 16rpx;
   padding-top: 16rpx;
   border-top: 1rpx solid #f5f5f5;
+}
+.subsidy-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-bottom: 12rpx;
+}
+.subsidy-chip {
+  font-size: 22rpx;
+  color: #FF6B35;
+  background: #FFF1EC;
+  border-radius: 8rpx;
+  padding: 6rpx 14rpx;
 }
 .commission-box {
   display: inline-flex;

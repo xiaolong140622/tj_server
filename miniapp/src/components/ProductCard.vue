@@ -18,7 +18,10 @@
         <text class="product-original-price" v-if="product.originalPrice">¥{{ formatPrice(product.originalPrice) }}</text>
       </view>
       <view class="product-bottom-row">
-        <!-- TODO(B-2 挂起·管理 seq-338/346)：补贴角标展示位。依赖 JAVA C-1 冻结契约的补贴三字段命名，草案落档前不接 -->
+        <!-- B-2 补贴角标（冻结契约 jd-channel-contract-v1.md）：null 即隐藏，禁 0 填充 -->
+        <view class="subsidy-badges" v-if="subsidyTags.length">
+          <text class="subsidy-badge" v-for="t in subsidyTags" :key="t.key">{{ t.label }}</text>
+        </view>
         <view class="product-commission" v-if="showCommission">
           <text class="commission-label">{{ COPYWRITING.COMMISSION_LABEL }}</text>
           <text class="commission-value">{{ rewardText ? `¥${rewardText}` : '待计算' }}</text>
@@ -34,6 +37,7 @@ import { computed } from 'vue';
 import { COPYWRITING, PLATFORM } from '../utils/constants';
 import { formatMoney } from '../utils/format';
 import { estimateReward } from '../utils/commission';
+import { subsidyTags as getSubsidyTags } from '../utils/subsidy';
 
 const props = defineProps({
   product: { type: Object, required: true },
@@ -61,6 +65,8 @@ const rewardText = computed(() => {
   return estimateReward(p.price, platformKey.value);
 });
 const platformInfo = computed(() => PLATFORM[platformKey.value.toUpperCase()] || PLATFORM.TB);
+// B-2 补贴角标（冻结契约）：null 即隐藏，禁 0 填充
+const subsidyTags = computed(() => getSubsidyTags(props.product));
 const platformLabel = computed(() => platformInfo.value.label);
 const platformColor = computed(() => {
   const colors = { tb: '#ff4d4f', jd: '#e4393c', pdd: '#e02e24', dy: '#161823' };
@@ -185,7 +191,22 @@ const onClick = () => emit('click', props.product);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8rpx;
   margin-top: 8rpx;
+}
+.subsidy-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8rpx;
+}
+.subsidy-badge {
+  font-size: 20rpx;
+  color: #FF6B35;
+  background: #FFF1EC;
+  border-radius: 8rpx;
+  padding: 4rpx 10rpx;
 }
 .product-commission {
   display: inline-flex;

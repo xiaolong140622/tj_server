@@ -57,7 +57,10 @@
                 <text class="order-card-time">{{ formatOrderTime(item.orderTime || item.createTime) }}</text>
               </view>
               <view class="order-card-reward">
-                <!-- TODO(B-2 挂起·管理 seq-338/350)：补贴字段随 C-1 冻结稿放行后并入奖励行 -->
+                <!-- B-2 补贴字段（冻结契约 jd-channel-contract-v1.md）：null 即隐藏，禁 0 填充 -->
+                <view class="reward-subsidy" v-if="subsidyTags(item).length">
+                  <text class="reward-subsidy-chip" v-for="t in subsidyTags(item)" :key="t.key">{{ t.label }}</text>
+                </view>
                 <text class="reward-label">{{ COPYWRITING.COMMISSION_LABEL }}</text>
                 <text class="reward-value">¥{{ formatMoney(item.hb || item.commission) }}</text>
               </view>
@@ -111,6 +114,7 @@ import { getTbOrders, getJdOrders, getPddOrders, getDyOrders } from '../../api/o
 import { PLATFORM_LIST, ORDER_STATUS, COPYWRITING } from '../../utils/constants';
 import { formatMoney } from '../../utils/format';
 import { normalizeJdOrder } from '../../utils/order';
+import { subsidyTags } from '../../utils/subsidy';
 import { ICONS } from '../../utils/icons';
 import { mockOrders } from '../../mock/index';
 
@@ -410,11 +414,26 @@ onShow(() => loadOrders(true));
 .order-card-reward {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8rpx;
   background: linear-gradient(135deg, #fff7f0, #fff0e6);
   border-radius: 10rpx;
   padding: 8rpx 16rpx;
   align-self: flex-start;
+}
+.reward-subsidy {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  width: 100%;
+}
+.reward-subsidy-chip {
+  font-size: 20rpx;
+  color: #FF6B35;
+  background: #FFF1EC;
+  border: 1rpx solid rgba(255, 107, 53, 0.2);
+  border-radius: 8rpx;
+  padding: 2rpx 10rpx;
 }
 .reward-label {
   font-size: 22rpx;
