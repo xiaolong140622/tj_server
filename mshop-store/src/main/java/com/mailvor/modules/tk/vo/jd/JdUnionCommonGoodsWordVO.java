@@ -21,6 +21,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class JdUnionCommonGoodsWordVO {
 
+    @Schema(description = "转链码：200成功，其余为上游/通道失败（详见msg）")
+    private Integer code;
+    @Schema(description = "描述")
+    private String msg;
+
     @Schema(description = "转链url")
     private String link;
     @Schema(description = "口令")

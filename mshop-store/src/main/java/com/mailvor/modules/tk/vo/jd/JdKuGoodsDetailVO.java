@@ -192,6 +192,15 @@ public class JdKuGoodsDetailVO {
     @Schema(description = "商品详情图")
     private String details;
 
+    @Schema(description = "补贴比例-京东联盟官方口径（上游 goods.query 未返回时为 null，订单侧口径见 OrderRowResp.subsidyRate）")
+    private Double subsidyRate;
+
+    @Schema(description = "平台补贴比例-京东联盟官方口径（上游 goods.query 未返回时为 null，订单侧口径见 OrderRowResp.subSideRate）")
+    private Double subSideRate;
+
+    @Schema(description = "佣金比例-京东联盟官方口径 commissionInfo.commissionShare（降级好单库通道与 feeRatio/commissionshare 同值回填）")
+    private Double commissionRate;
+
     @Schema(description = "平台 tb tm jd pdd dy vip mt")
     private String platform = "jd";
 }

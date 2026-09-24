@@ -41,13 +41,27 @@ public class DataokeJDController {
     private KuService kuService;
 
     /**
-     * 京东商品关键词搜索（好单库 jd_goods_search 透传）
-     * 入参：keyword 必填，pageId 页码(从1)、pageSize 页大小(默认10)、sortName/sort 排序
-     * 返回 JdKuSearchListVO：{code,msg,data:[...]} 上游字段透传，code!=200 视为失败（前端错误态，不得回落 mock）
+     * 京东商品关键词搜索（C-1：联盟官方通道为主，好单库 jd_goods_search 为补充降级）
+     * 入参：keyword 必填，pageId 页码(从1)、pageSize 页大小(默认10)、sortName/sort 排序、cid1-3 等
+     * 返回统一 JdKuSearchListVO：{code,msg,data:[...]}；code!=200 视为失败（前端错误态，不得回落 mock）
+     * 降级规则：官方通道非200/异常 → 自动回退 ku 通道；ku 条目 commissionRate 以 feeRatio 同值回填
      */
     @GetMapping(value = "/goods/search")
     public JdKuSearchListVO goodsSearch(GoodsListJDParam param) {
-        return kuService.searchJD(param);
+        JdKuSearchListVO official = jdService.searchGoodsOfficial(param);
+        if (official.getCode() != null && official.getCode() == 200) {
+            return official;
+        }
+        log.warn("JD联盟官方搜索通道失败(code={}, msg={})，降级好单库通道", official.getCode(), official.getMsg());
+        JdKuSearchListVO ku = kuService.searchJD(param);
+        if (ku.getData() != null) {
+            ku.getData().forEach(item -> {
+                if (item.getCommissionRate() == null) {
+                    item.setCommissionRate(item.getFeeRatio());
+                }
+            });
+        }
+        return ku;
     }
 
     /**
@@ -64,7 +78,9 @@ public class DataokeJDController {
     }
 
     /**
-     * 获取京东商品转链口令
+     * 获取京东商品转链口令（C-2 收口：上游失败返回 200+ApiResult.fail 信封，不再 500）
+     * 成功：{status:true,data:{code:200,msg:success,link,pwd}}
+     * 失败：{status:false,msg:"京东转链上游异常"|上游message,data:null}
      * @param param
      * @return
      */
@@ -80,7 +96,10 @@ public class DataokeJDController {
             positionId = "0";
         }
         JdUnionCommonGoodsWordVO daRes = jdService.goodsWord(param.getGoodsId(), param.getCouponLink(), positionId);
-
+        if (daRes == null || daRes.getCode() == null || daRes.getCode() != 200) {
+            String msg = daRes == null || daRes.getMsg() == null ? "京东转链上游异常" : daRes.getMsg();
+            return ApiResult.result(com.mailvor.api.ApiCode.FAIL, msg, null);
+        }
         return ApiResult.ok(daRes);
 
     }

@@ -321,17 +321,7 @@ public class DataokeService {
         if (StringUtils.isNotBlank(goodsId) && !"0".equals(goodsId) && !goodsId.equals(itemId)) {
             request.setSkuIds(goodsId);
         }
-        try {
-            return DtkResponseConverter.toFullJsonObject(dtkApiClient.execute(request));
-        } catch (Exception e) {
-            // 上游异常时 SDK 内部 buildFail 会因结果枚举为空抛 NPE，收口为 {code:-1,msg} 信封（同 DtkResponseConverter 失败形状），
-            // 前端 F-11 兜底链据此回退 ku 通道；不再冒泡成 500「服务器错误」
-            log.warn("京东详情DTK通道调用失败: {}", e.getMessage());
-            JSONObject errorObj = new JSONObject();
-            errorObj.put("code", -1);
-            errorObj.put("msg", "京东详情上游异常");
-            return errorObj;
-        }
+        return safeDtkJdCall(request, "京东详情DTK通道");
     }
 
     public JSONObject goodsWordJD(String itemUrl, String couponUrl, String pid) {
@@ -343,13 +333,30 @@ public class DataokeService {
             try { request.setPositionId(Long.parseLong(pid)); }
             catch (NumberFormatException e) { log.warn("pid转换失败: {}", pid); }
         }
-        return DtkResponseConverter.toFullJsonObject(dtkApiClient.execute(request));
+        return safeDtkJdCall(request, "京东转链DTK通道");
     }
 
     public JSONObject parseUrlJD(String itemUrl) {
         DtkJdLinkAnalysisRequest request = new DtkJdLinkAnalysisRequest();
         request.setUrl(itemUrl);
-        return DtkResponseConverter.toFullJsonObject(dtkApiClient.execute(request));
+        return safeDtkJdCall(request, "京东链接解析DTK通道");
+    }
+
+    /**
+     * A-3 DTK 京东通道判空加固：SDK 内部 buildFail 在结果枚举为空时会抛 NPE，
+     * 统一收口为 {code:-1,msg} 失败信封（与 goodsDetailJD/ DtkResponseConverter 失败形状一致），
+     * 调用方/前端兜底链据 code!=0 降级，不再冒泡 500。错误语义见 shared/jd-channel-contract-v1.md。
+     */
+    private JSONObject safeDtkJdCall(com.dtk.api.client.DtkApiRequest<?> request, String channel) {
+        try {
+            return DtkResponseConverter.toFullJsonObject(dtkApiClient.execute(request));
+        } catch (Exception e) {
+            log.warn("{}调用失败: {}", channel, e.getMessage());
+            JSONObject errorObj = new JSONObject();
+            errorObj.put("code", -1);
+            errorObj.put("msg", channel + "上游异常");
+            return errorObj;
+        }
     }
 
     // ==================== 拼多多 ====================
