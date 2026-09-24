@@ -26,6 +26,8 @@ export const getTbSimilar = (params, opts) => get('/tao/goods/similar/list', par
 export const getTbTljList = (params, opts) => get('/tao/tlj/goods/list', params, opts);
 
 export const getJdGoodsDetail = (params, opts) => get('/jd/goods/detail', params, opts);
+// F-11：JD 详情 DTK 通道上游 403 时的 ku 兜底（管理 8008 实测可用）：goodsId=加密ID，响应 {code,msg,data}
+export const getJdKuGoodsDetail = (params, opts) => get('/ku/jd/goods/detail', params, opts);
 export const getJdGoodsWord = (params, opts) => get('/jd/goods/word', params, opts);
 export const getJdRankList = (params, opts) => get('/jd/rank/list', params, opts);
 // JD 商品搜索（JAVA seq-177 P1-4，好单库透传）：keyword/pageId/pageSize/sortName/sort，响应 {code,msg,data:[...]}

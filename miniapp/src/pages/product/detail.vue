@@ -86,7 +86,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { onLoad, onShareAppMessage } from '@dcloudio/uni-app';
-import { getTbGoodsDetail, getTbGoodsWord, getJdGoodsDetail, getJdGoodsWord, getPddGoodsDetail, getPddGoodsWord, getDyGoodsDetail, getDyGoodsWord } from '../../api/product';
+import { getTbGoodsDetail, getTbGoodsWord, getJdGoodsDetail, getJdGoodsWord, getJdKuGoodsDetail, getPddGoodsDetail, getPddGoodsWord, getDyGoodsDetail, getDyGoodsWord } from '../../api/product';
 import { formatMoney } from '../../utils/format';
 import { COPYWRITING, PLATFORM } from '../../utils/constants';
 import FailRetry from '../../components/FailRetry.vue';
@@ -124,6 +124,29 @@ const onSwiperChange = (e) => {
   currentIndex.value = e.detail.current;
 };
 
+// F-11（管理 seq-299 定稿）：JD DTK 详情上游 403 → 兜底 ku 透传通道（/ku/jd/goods/detail?goodsId=加密ID）。
+// ku 响应 {code,msg,data} 为透传 VO，字段映射到本页视图模型；兜底再失败则上抛走整页错误态。
+const fetchJdDetail = async (params, opts) => {
+  try {
+    return await getJdGoodsDetail(params, opts);
+  } catch (e) {
+    const ku = await getJdKuGoodsDetail({ goodsId: params.id }, opts);
+    const d = ku?.data || ku?.result || {};
+    if (!d.title && !d.goodsId && !d.itemId) throw e;
+    return {
+      data: {
+        ...d,
+        price: d.startPrice,
+        originalPrice: d.endPrice,
+        couponAmount: d.coupon,
+        commission: d.fee,
+        // 8008 实测：img=主图，details=详情图数组；合并成 '|' 分隔串复用本页切图逻辑
+        images: [d.img, ...(Array.isArray(d.details) ? d.details : [])].filter(Boolean).join('|'),
+      },
+    };
+  }
+};
+
 const loadDetail = async () => {
   if (USE_MOCK) {
     const data = mockProductDetail(platform.value);
@@ -138,7 +161,7 @@ const loadDetail = async () => {
     let res;
     switch (platform.value) {
       case 'tb': res = await getTbGoodsDetail(params, opts); break;
-      case 'jd': res = await getJdGoodsDetail(params, opts); break;
+      case 'jd': res = await fetchJdDetail(params, opts); break;
       case 'pdd': res = await getPddGoodsDetail(params, opts); break;
       case 'dy': res = await getDyGoodsDetail(params, opts); break;
     }
