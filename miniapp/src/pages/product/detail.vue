@@ -33,6 +33,7 @@
         </view>
       </view>
       <view class="commission-row">
+        <!-- TODO(B-2 挂起·管理 seq-338/350)：补贴三字段展示位（C-1 冻结稿字段名放行后接） -->
         <view class="commission-box">
           <text class="commission-label">{{ COPYWRITING.COMMISSION_LABEL }}</text>
           <text class="commission-value">¥{{ commissionAmount }}</text>

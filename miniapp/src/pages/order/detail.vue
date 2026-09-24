@@ -1,5 +1,7 @@
 <template>
   <view class="page-order-detail">
+    <view v-if="loadError" class="detail-error"><FailRetry @retry="retryLoad" /></view>
+    <block v-else>
     <view class="status-hero" :class="'status-hero--' + statusTheme">
       <view class="status-icon-wrap">
         <text class="status-icon">{{ statusIcon }}</text>
@@ -108,6 +110,7 @@
         </view>
       </view>
     </view>
+    </block>
   </view>
 </template>
 
@@ -115,12 +118,16 @@
 import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { formatMoney } from '../../utils/format';
+import { normalizeJdOrder } from '../../utils/order';
+import { getJdOrders } from '../../api/order';
+import FailRetry from '../../components/FailRetry.vue';
 import { COPYWRITING, PLATFORM_LIST, ORDER_STATUS } from '../../utils/constants';
 import { mockOrderDetail } from '../../mock/index';
 
 const USE_MOCK = false;
 
 const orderInfo = ref({});
+const loadError = ref(false);
 const platformLabel = ref('');
 const platformColor = ref('#ff6b35');
 const platformBg = ref('rgba(255,107,53,0.08)');
@@ -138,7 +145,17 @@ const priceStr = computed(() => {
 const priceInt = computed(() => priceStr.value.split('.')[0]);
 const priceDec = computed(() => priceStr.value.split('.')[1] || '00');
 
-const loadDetail = (opts) => {
+const queryParams = ref({});
+
+const applyStatus = () => {
+  const st = Object.values(ORDER_STATUS).find(s => s.value === orderInfo.value.status);
+  statusLabel.value = st ? st.label : '';
+  statusTheme.value = orderInfo.value.status === 3 ? 'completed' : orderInfo.value.status === 2 ? 'settled' : 'pending';
+  statusIcon.value = STATUS_ICONS[orderInfo.value.status] || '⏳';
+};
+
+const loadDetail = async (opts) => {
+  queryParams.value = opts || {};
   const platform = opts.platform || 'tb';
   const pInfo = PLATFORM_LIST.find(p => p.value === platform);
   platformLabel.value = pInfo ? pInfo.label : '';
@@ -147,13 +164,27 @@ const loadDetail = (opts) => {
 
   if (USE_MOCK) {
     orderInfo.value = mockOrderDetail(opts.id || opts.key || 'ord_tb_0', platform);
+  } else if (platform === 'jd') {
+    // C-3：JD 详情 = /jd/orders criteria.value 反查单条（blurry 含 id/orderId；F-7 信封已收口）
+    loadError.value = false;
+    const key = opts.key || opts.id || '';
+    try {
+      const res = await getJdOrders({ page: 1, limit: 1, value: key }, { silent: true });
+      const rows = Array.isArray(res?.data) ? res.data : (Array.isArray(res?.result) ? res.result : []);
+      const row = rows.find((r) => String(r.id) === String(key) || String(r.orderId) === String(key)) || rows[0];
+      if (!row) {
+        loadError.value = true; // 查无此行也走错误态，禁 mock 填充
+      } else {
+        orderInfo.value = normalizeJdOrder(row);
+      }
+    } catch (e) {
+      loadError.value = true;
+    }
   }
-
-  const st = Object.values(ORDER_STATUS).find(s => s.value === orderInfo.value.status);
-  statusLabel.value = st ? st.label : '';
-  statusTheme.value = orderInfo.value.status === 3 ? 'completed' : orderInfo.value.status === 2 ? 'settled' : 'pending';
-  statusIcon.value = STATUS_ICONS[orderInfo.value.status] || '⏳';
+  applyStatus();
 };
+
+const retryLoad = () => loadDetail(queryParams.value);
 
 onLoad((opts) => loadDetail(opts));
 </script>
@@ -164,6 +195,8 @@ onLoad((opts) => loadDetail(opts));
   background: #f5f5f5;
   padding-bottom: 60rpx;
 }
+
+.detail-error { padding: 120rpx 24rpx 0; }
 
 .status-hero {
   display: flex;

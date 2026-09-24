@@ -57,6 +57,7 @@
                 <text class="order-card-time">{{ formatOrderTime(item.orderTime || item.createTime) }}</text>
               </view>
               <view class="order-card-reward">
+                <!-- TODO(B-2 挂起·管理 seq-338/350)：补贴字段随 C-1 冻结稿放行后并入奖励行 -->
                 <text class="reward-label">{{ COPYWRITING.COMMISSION_LABEL }}</text>
                 <text class="reward-value">¥{{ formatMoney(item.hb || item.commission) }}</text>
               </view>
@@ -109,6 +110,7 @@ import FailRetry from '../../components/FailRetry.vue';
 import { getTbOrders, getJdOrders, getPddOrders, getDyOrders } from '../../api/order';
 import { PLATFORM_LIST, ORDER_STATUS, COPYWRITING } from '../../utils/constants';
 import { formatMoney } from '../../utils/format';
+import { normalizeJdOrder } from '../../utils/order';
 import { ICONS } from '../../utils/icons';
 import { mockOrders } from '../../mock/index';
 
@@ -226,7 +228,9 @@ const loadOrders = async (reset = false) => {
       case 'dy': res = await getDyOrders(params, { silent: true }); break;
       default: res = await getTbOrders(params, { silent: true });
     }
-    const list = pickRows(res);
+    let list = pickRows(res);
+    // JD 行字段适配（MailvorJdOrderDto → 视图通用字段；utils/order.js，字段源自仓库已提交 DTO）
+    if (currentPlatform.value === 'jd') list = list.map(normalizeJdOrder);
     if (list.length < 20) hasMore.value = false;
     orderList.value = reset ? list : [...orderList.value, ...list];
     page.value++;

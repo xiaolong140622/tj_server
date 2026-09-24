@@ -18,6 +18,7 @@
         <text class="product-original-price" v-if="product.originalPrice">¥{{ formatPrice(product.originalPrice) }}</text>
       </view>
       <view class="product-bottom-row">
+        <!-- TODO(B-2 挂起·管理 seq-338/346)：补贴角标展示位。依赖 JAVA C-1 冻结契约的补贴三字段命名，草案落档前不接 -->
         <view class="product-commission" v-if="showCommission">
           <text class="commission-label">{{ COPYWRITING.COMMISSION_LABEL }}</text>
           <text class="commission-value">{{ rewardText ? `¥${rewardText}` : '待计算' }}</text>
