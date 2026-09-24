@@ -37,6 +37,8 @@ import org.springframework.web.client.RestTemplate;
 
 import javax.annotation.Resource;
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URLEncoder;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -747,13 +749,20 @@ public class KuService {
         //这里可以传京东商品加密id
         if(org.apache.commons.lang3.StringUtils.isNotBlank(param.getKeyword())) {
             sb.append("&keyword=");
-            sb.append(param.getKeyword());
+            // 中文关键词必须显式 UTF-8 百分号编码后拼接：RestTemplate 对含原始中文的 String URL
+            // 会按 URI 模板规则二次处理导致上游收到损坏关键词（中文搜索恒为空，见 F-10）
+            try {
+                sb.append(URLEncoder.encode(param.getKeyword(), "UTF-8"));
+            } catch (UnsupportedEncodingException e) {
+                throw new IllegalStateException(e);
+            }
         }
         if(sortKu != null) {
             sb.append("&sort=");
             sb.append(sortKu);
         }
-        ResponseEntity<String> re = restTemplate.getForEntity("http://v2.api.haodanku.com/jd_goods_search?" + sb, String.class);
+        // 预编码后的 URL 用 URI 直传，绕过 getForEntity(String) 的模板再编码
+        ResponseEntity<String> re = restTemplate.getForEntity(URI.create("http://v2.api.haodanku.com/jd_goods_search?" + sb), String.class);
         log.info("京东搜索接口返回结果：{}", Objects.requireNonNull(JSONObject.parse(re.getBody())));
         JdKuSearchListVO listVO = JSON.parseObject(re.getBody(), JdKuSearchListVO.class);
         return listVO;
