@@ -418,7 +418,11 @@ public class UserController {
             if (!dir.exists() && !dir.mkdirs()) {
                 return ApiResult.fail("头像目录创建失败");
             }
-            file.transferTo(new java.io.File(dir, filename));
+            // Windows 下 transferTo 会把 Linux 风格路径按临时目录相对解析导致写入失败，改用流拷贝（与 mkdirs/静态映射同一套路径语义，且自动创建父目录）
+            java.io.File dest = new java.io.File(dir, filename);
+            try (java.io.InputStream in = file.getInputStream()) {
+                org.apache.commons.io.FileUtils.copyInputStreamToFile(in, dest);
+            }
             Map<String, String> data = new HashMap<>(2);
             data.put("url", "/avatar/" + filename);
             return ApiResult.ok(data);
@@ -428,6 +432,7 @@ public class UserController {
         }
     }
 
+    @AuthCheck
     @PostMapping("/user/edit")
     @ApiOperation(value = "用户修改信息",notes = "用修改信息")
     public ApiResult<String> edit(@Validated @RequestBody UserEditParam param){
