@@ -1,13 +1,16 @@
 // JD 订单行归一化（C-3）：字段取自仓库已提交 MailvorJdOrderDto/BaseOrderDto（非 C-1 草案），
 // 映射到订单页通用视图模型；B-2 补贴三字段已按冻结契约（jd-channel-contract-v1.md）扩展：
 // subsidyRate / subSideRate / commissionRate 保留契约键名（可 null，null 由展示层隐藏，禁 0 填充）。
+// 金额口径（种子单实测 8019，validCode=16 未结算行）：actualCosPrice/actualFee 未结算时恒 0.0，
+// 0 为「未结算」哨兵值（DTO 注释「实际佣金，未结算时为0」同口径），非真实成交价 → 取 >0 才采信，否则回落预估。
+const positiveOr = (v, fallback) => (Number(v) > 0 ? v : fallback);
 export const normalizeJdOrder = (item) => ({
   ...item,
   title: item.title || item.skuName || '',
   pic: item.pic || item.mainPic || item.goodsInfo?.imageUrl || '',
   shopName: item.shopName || item.goodsInfo?.shopName || '',
-  amount: item.amount ?? item.actualCosPrice ?? item.estimateCosPrice ?? item.price,
-  payPrice: item.payPrice ?? item.actualCosPrice ?? item.estimateCosPrice ?? item.price,
+  amount: positiveOr(item.amount, positiveOr(item.actualCosPrice, item.estimateCosPrice ?? item.price)),
+  payPrice: positiveOr(item.payPrice, positiveOr(item.actualCosPrice, item.estimateCosPrice ?? item.price)),
   // 未结算时 actualFee=0，按契约注释「预估佣金以 estimateFee 为准」取实发优先、预估兜底
   commission: item.commission ?? (Number(item.actualFee) > 0 ? item.actualFee : item.estimateFee),
   // B-2 补贴三字段（冻结契约键名）：DTO 历史键 subsideRate 归一到契约 subSideRate，null 原样保留
