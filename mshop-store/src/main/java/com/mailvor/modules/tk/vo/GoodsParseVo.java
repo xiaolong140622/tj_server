@@ -50,6 +50,9 @@ public class GoodsParseVo implements Serializable {
     @Schema(description = "cps全链路淘口令")
     private String cpsFullTpwd;
 
+    @Schema(description = "加密商品ID（大淘客goodsSign，转链/下单口令唯一可用形态）；数字淘宝id未收录时 null")
+    private String goodsSign;
+
     private GoodsParseOrigInfoVo originInfo;
 
 }

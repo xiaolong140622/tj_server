@@ -145,11 +145,41 @@ public class DataokeService {
     // ==================== 高效转链 ====================
 
     public JSONObject goodsWord(String goodsId, String pid, String channelId) {
+        String wordGoodsId = goodsId;
+        if (StringUtils.isNotBlank(goodsId) && goodsId.matches("\\d+")) {
+            // 联盟政策不允许数字id转链（实测word数字id返回400）：先经单品详情换取goodsSign，仅收录品可换
+            String goodsSign = resolveGoodsSignByNumericId(goodsId);
+            if (StringUtils.isBlank(goodsSign)) {
+                JSONObject res = new JSONObject();
+                res.put("code", 400);
+                res.put("msg", "商品未收录大淘客商品库，无法生成下单口令");
+                res.put("success", false);
+                return res;
+            }
+            wordGoodsId = goodsSign;
+        }
         DtkGetPrivilegeLinkRequest request = new DtkGetPrivilegeLinkRequest();
-        request.setGoodsId(goodsId);
+        request.setGoodsId(wordGoodsId);
         if (StringUtils.isNotBlank(pid)) request.setPid(pid);
         if (StringUtils.isNotBlank(channelId)) request.setChannelId(channelId);
         return DtkResponseConverter.toFullJsonObject(dtkApiClient.execute(request));
+    }
+
+    /**
+     * 数字淘宝id → 大淘客加密goodsSign（收录品才换得到；未收录/异常返回null）
+     */
+    private String resolveGoodsSignByNumericId(String numericGoodsId) {
+        try {
+            JSONObject detail = goodsDetail(numericGoodsId);
+            if (detail == null || detail.getIntValue("code") != 0) {
+                return null;
+            }
+            JSONObject data = detail.getJSONObject("data");
+            return data == null ? null : data.getString("goodsSign");
+        } catch (Exception e) {
+            log.warn("数字id换取goodsSign失败: {}", e.getMessage());
+            return null;
+        }
     }
 
     // ==================== 万能解析 ====================
@@ -158,7 +188,14 @@ public class DataokeService {
         DtkParseContentRequest request = new DtkParseContentRequest();
         request.setContent(content);
         JSONObject jsonObject = DtkResponseConverter.toFullJsonObject(dtkApiClient.execute(request));
-        return JSON.parseObject(JSON.toJSONString(jsonObject), goodsParseTypeRef);
+        DataokeResVo<GoodsParseVo> resVo = JSON.parseObject(JSON.toJSONString(jsonObject), goodsParseTypeRef);
+        // 透出加密goodsSign（转链唯一可用形态）：上游已给加密串则直填；纯数字淘宝id经收录品详情换取；换不到保持null
+        GoodsParseVo data = resVo == null ? null : resVo.getData();
+        if (data != null && StringUtils.isNotBlank(data.getGoodsId())) {
+            String gid = data.getGoodsId();
+            data.setGoodsSign(gid.matches("\\d+") ? resolveGoodsSignByNumericId(gid) : gid);
+        }
+        return resVo;
     }
 
     // ==================== 超级分类 ====================
