@@ -184,7 +184,8 @@ const runQuery = async (g, raw) => {
       throw new Error('未识别到有效淘宝商品，请检查链接/口令');
     }
     // 判定契约（JAVA seq-522，eb47649）：完整展示与否以 parse.data.goodsSign 为准——
-    // 非空 → 详情/转链全部用 goodsSign（可下单）；null（未收录）→ 空值口径 + 动作置灰，禁数字id再调 word/detail
+    // 非空 → 详情/转链全部用 goodsSign（可下单）；null → 空值口径 + 动作置灰，禁数字id再调 word/detail
+    // 注：null 不等同「未收录」（数字id/超范围id 也换不到签，JAVA 447a331 中性化口径），文案禁「未收录」误判词
     const goodsSign = String(d.goodsSign || '');
     let p = null;
     let priceNum = 0;
@@ -234,12 +235,12 @@ const retryGroup = (g) => {
   runQuery(g, g.input);
 };
 
-// 未收录品（goodsSign null）：查看详情/下单返置灰走 toast（JAVA seq-522 判定契约）
+// goodsSign null（转链信息未定位，中性口径对齐 JAVA 447a331）：查看详情/下单返置灰走 toast（JAVA seq-522 判定契约）
 const isOrderable = (g) => !!(g.product && g.product.goodsSign);
 
 const goDetail = (g) => {
   if (!isOrderable(g)) {
-    uni.showToast({ title: '该商品未收录返利库，暂无法查看详情', icon: 'none' });
+    uni.showToast({ title: '暂无法定位该商品的转链信息，无法查看详情', icon: 'none' });
     return;
   }
   uni.navigateTo({ url: `/pages/product/detail?id=${encodeURIComponent(g.product.goodsSign)}&platform=tb` });
@@ -254,7 +255,7 @@ const goMoreSearch = (g) => {
 // 下单返¥X：转链取口令 → 复制成功 toast（产品 §3），失败 toast，禁假成功；禁数字id调 word（JAVA 契约）
 const onOrderRebate = async (g) => {
   if (!isOrderable(g)) {
-    uni.showToast({ title: '商品未收录，暂无法生成下单口令', icon: 'none' });
+    uni.showToast({ title: '暂无法定位该商品的转链信息，无法生成下单口令', icon: 'none' });
     return;
   }
   try {
