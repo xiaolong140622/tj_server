@@ -5,6 +5,7 @@
     { "path": "pages/user/spread", "style": { "navigationBarTitleText": "推广中心" } },
     { "path": "pages/user/index", "style": { "navigationBarTitleText": "个人中心" } },
     { "path": "pages/search/index", "style": { "navigationBarTitleText": "搜索" } },
+    { "path": "pages/rebate/index", "style": { "navigationBarTitleText": "查返利" } },
     { "path": "pages/product/detail", "style": { "navigationBarTitleText": "商品详情" } },
     { "path": "pages/order/detail", "style": { "navigationBarTitleText": "订单详情" } },
     { "path": "pages/user/balance", "style": { "navigationBarTitleText": "我的余额" } },
@@ -34,10 +35,10 @@
         "selectedIconPath": "static/tab/home-active.png"
       },
       {
-        "pagePath": "pages/order/list",
-        "text": "订单",
-        "iconPath": "static/tab/order.png",
-        "selectedIconPath": "static/tab/order-active.png"
+        "pagePath": "pages/rebate/index",
+        "text": "查返利",
+        "iconPath": "static/tab/rebate.png",
+        "selectedIconPath": "static/tab/rebate-active.png"
       },
       {
         "pagePath": "pages/user/spread",

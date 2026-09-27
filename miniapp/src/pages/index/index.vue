@@ -1,10 +1,20 @@
 <template>
   <view class="page-index">
     <view class="header-bg">
-      <view class="search-bar" hover-class="search-bar--hover" @click="goSearch">
-        <view class="search-icon"></view>
-        <text class="search-prefix">搜索</text>
-        <text class="search-placeholder">{{ hotWord || '粘贴链接/口令，或搜关键词' }}</text>
+      <!-- 用户 seq-482 第4点：首页伪搜索框加高为主视觉大卡（UI 规格 rebate-page-design-spec §5，≈260rpx）；点击进搜索页逻辑不变 -->
+      <view class="home-search-card" hover-class="home-search-card--hover" @click="goSearch">
+        <text class="home-search-title">找商品 · 查返利</text>
+        <view class="home-search-display">
+          <text class="home-search-ph">{{ hotWord || '粘贴商品链接/口令，或搜标题/关键词' }}</text>
+        </view>
+        <view class="home-search-actions">
+          <view class="home-paste-btn" hover-class="home-paste-btn--hover" @click.stop="onHomePaste">
+            <text class="home-paste-btn-text">粘贴</text>
+          </view>
+          <view class="home-go-btn" hover-class="home-go-btn--hover" @click.stop="goSearch">
+            <text class="home-go-btn-text">查返利</text>
+          </view>
+        </view>
       </view>
     </view>
 
@@ -46,15 +56,6 @@
           class="banner-dot"
           :class="{ 'banner-dot--active': bannerCurrent === idx }"
         ></view>
-      </view>
-    </view>
-
-    <view class="category-grid" v-if="categoryList.length">
-      <view class="category-item" v-for="cat in categoryList" :key="cat.id" @click="onCategoryClick(cat)" hover-class="category-item--hover">
-        <view class="category-icon-wrap">
-          <image :src="cat.pic" class="category-icon" mode="aspectFill" />
-        </view>
-        <text class="category-name">{{ cat.name }}</text>
       </view>
     </view>
 
@@ -108,10 +109,10 @@ import ProductCard from '../../components/ProductCard.vue';
 import Loading from '../../components/Loading.vue';
 import Empty from '../../components/Empty.vue';
 import FailRetry from '../../components/FailRetry.vue';
-import { getHomeBanner, getTbGoodsList, getPddGoodsList, getDyKuList, getJdRankList, getSearchHot, getCategoryList } from '../../api/product';
+import { getHomeBanner, getTbGoodsList, getPddGoodsList, getDyKuList, getJdRankList, getSearchHot } from '../../api/product';
 import { normalizeProductList } from '../../utils/product';
 import { loadCommissionInfo } from '../../utils/commission';
-import { mockBanners, mockCategories, mockHotWord, mockProducts } from '../../mock/index';
+import { mockBanners, mockHotWord, mockProducts } from '../../mock/index';
 
 // 仅显式开发开关，默认关闭；线上禁止回落 mock
 const USE_MOCK = false;
@@ -120,7 +121,6 @@ const currentPlatform = ref('tb');
 const bannerList = ref([]);
 const bannerFailed = ref({});
 const bannerCurrent = ref(0);
-const categoryList = ref([]);
 const productList = ref([]);
 const hotWord = ref('');
 const loading = ref(false);
@@ -167,26 +167,6 @@ const loadHotWord = async () => {
     if (list.length) hotWord.value = list[0].name || list[0];
   } catch (e) {
     hotWord.value = '';
-  }
-};
-
-const loadCategory = async () => {
-  if (USE_MOCK) { categoryList.value = mockCategories(); return; }
-  try {
-    const res = await getCategoryList({ silent: true });
-    const tree = res.result || res.data || [];
-    // /category 契约是嵌套树 {id,pid,cateName,pic,children}；宫格取带图的叶子，字段拍平成 {id,name,pic}
-    const flat = [];
-    const walk = (nodes) => {
-      (Array.isArray(nodes) ? nodes : []).forEach((n) => {
-        if (n && n.pic) flat.push({ id: n.id, name: n.cateName || n.name || '', pic: n.pic });
-        if (n && n.children) walk(n.children);
-      });
-    };
-    walk(tree);
-    categoryList.value = flat.filter((c) => c.name).slice(0, 10);
-  } catch (e) {
-    categoryList.value = [];
   }
 };
 
@@ -249,6 +229,17 @@ const goSearch = () => {
   const q = hotWord.value ? `&keyword=${encodeURIComponent(hotWord.value)}` : '';
   uni.navigateTo({ url: `/pages/search/index?platform=${currentPlatform.value}${q}` });
 };
+// 首页大卡粘贴键（UI 规格 §5）：读剪贴板回填搜索页输入框，不自动触发查询（auto=0）
+const onHomePaste = () => {
+  uni.getClipboardData({
+    success: (r) => {
+      const text = (r.data || '').trim();
+      if (!text) { uni.showToast({ title: '剪贴板暂无内容', icon: 'none' }); return; }
+      uni.navigateTo({ url: `/pages/search/index?platform=${currentPlatform.value}&keyword=${encodeURIComponent(text)}&auto=0` });
+    },
+    fail: () => uni.showToast({ title: '剪贴板暂无内容', icon: 'none' }),
+  });
+};
 const goDetail = (product) => {
   const { id, itemId, goodsId } = product;
   const pid = id || itemId || goodsId;
@@ -270,7 +261,7 @@ const onBannerClick = (item) => {
   } else if (t === 'search' || t === 'category') {
     uni.navigateTo({ url: `/pages/search/index?platform=${currentPlatform.value}&keyword=${encodeURIComponent(target)}` });
   } else if (t === 'page') {
-    const TAB_PAGES = ['/pages/index/index', '/pages/order/list', '/pages/user/spread', '/pages/user/index'];
+    const TAB_PAGES = ['/pages/index/index', '/pages/rebate/index', '/pages/user/spread', '/pages/user/index'];
     const path = target.split('?')[0];
     if (TAB_PAGES.includes(path)) uni.switchTab({ url: path });
     else uni.navigateTo({ url: target });
@@ -279,20 +270,15 @@ const onBannerClick = (item) => {
   }
 };
 
-const onCategoryClick = (cat) => {
-  uni.navigateTo({ url: `/pages/search/index?platform=${currentPlatform.value}&keyword=${encodeURIComponent(cat.name || '')}` });
-};
-
 onReachBottom(() => loadProducts());
 onPullDownRefresh(async () => {
-  await Promise.all([loadBanner(), loadHotWord(), loadCategory(), loadProducts(true)]);
+  await Promise.all([loadBanner(), loadHotWord(), loadProducts(true)]);
   uni.stopPullDownRefresh();
 });
 
 onMounted(() => {
   loadBanner();
   loadHotWord();
-  loadCategory();
   loadProducts(true);
   loadCommissionInfo();
 });
@@ -308,33 +294,62 @@ onMounted(() => {
   background: linear-gradient(180deg, #FF6B35, #FF9A62);
   padding: 20rpx 24rpx 28rpx;
 }
-.search-bar {
-  display: flex;
-  align-items: center;
-  height: 72rpx;
-  padding: 0 28rpx;
-  background: rgba(255, 255, 255, 0.98);
-  border-radius: 999rpx;
-  gap: 12rpx;
-  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.06);
+/* 首页主视觉大卡（UI 规格 rebate-page-design-spec §5）：≈260rpx，整卡可点进搜索页 */
+.home-search-card {
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 28rpx;
+  box-shadow: 0 12rpx 32rpx rgba(0, 0, 0, 0.10);
 }
-.search-bar--hover { opacity: 0.9; }
-.search-icon {
-  width: 28rpx;
-  height: 28rpx;
-  flex-shrink: 0;
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2024%2024%27%20fill%3D%27none%27%20stroke%3D%27%23B6BAC2%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Ccircle%20cx%3D%2711%27%20cy%3D%2711%27%20r%3D%277.5%27%2F%3E%3Cpath%20d%3D%27M21%2021l-4.3-4.3%27%2F%3E%3C%2Fsvg%3E");
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
+.home-search-card--hover { opacity: 0.95; }
+.home-search-title {
+  display: block;
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #1F2126;
 }
-.search-prefix { font-size: 26rpx; color: #B6BAC2; flex-shrink: 0; }
-.search-placeholder {
-  font-size: 26rpx;
-  color: #7A7F89;
+.home-search-display {
+  margin-top: 20rpx;
+  padding: 18rpx 4rpx;
+  border-bottom: 1rpx solid #F2F3F5;
+}
+.home-search-ph {
+  font-size: 30rpx;
+  color: #B6BAC2;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  display: block;
 }
+.home-search-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+.home-paste-btn {
+  display: flex;
+  align-items: center;
+  padding: 12rpx 32rpx;
+  border-radius: 999rpx;
+  background: #fff;
+  border: 1rpx solid rgba(255, 107, 53, 0.4);
+}
+.home-paste-btn--hover { background: #FFF7F0; }
+.home-paste-btn-text { font-size: 26rpx; color: #FF6B35; font-weight: 500; }
+.home-go-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 64rpx;
+  padding: 0 40rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #FF6B35, #FF8F65);
+  box-shadow: 0 6rpx 16rpx rgba(255, 107, 53, 0.35);
+}
+.home-go-btn--hover { transform: scale(0.97); opacity: 0.9; }
+.home-go-btn-text { font-size: 28rpx; color: #fff; font-weight: 600; }
 
 .banner-wrap {
   position: relative;
@@ -382,42 +397,6 @@ onMounted(() => {
 .banner-dot--active {
   width: 24rpx;
   background: #FF6B35;
-}
-
-.category-grid {
-  display: flex;
-  flex-wrap: wrap;
-  background: #fff;
-  margin: 20rpx 24rpx 0;
-  border-radius: 24rpx;
-  padding: 24rpx 12rpx 8rpx;
-  box-shadow: 0 8rpx 32rpx rgba(31, 33, 38, 0.06);
-}
-.category-item {
-  width: 20%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 16rpx;
-  transition: transform 0.15s ease;
-}
-.category-item--hover { transform: scale(0.92); }
-.category-icon-wrap {
-  width: 88rpx;
-  height: 88rpx;
-  border-radius: 50%;
-  overflow: hidden;
-  background: #F7F8FA;
-}
-.category-icon { width: 100%; height: 100%; }
-.category-name {
-  font-size: 22rpx;
-  color: #7A7F89;
-  margin-top: 10rpx;
-  max-width: 120rpx;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .product-section { margin-top: 8rpx; }

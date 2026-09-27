@@ -121,8 +121,9 @@ import ProductCard from '../../components/ProductCard.vue';
 import Loading from '../../components/Loading.vue';
 import Empty from '../../components/Empty.vue';
 import FailRetry from '../../components/FailRetry.vue';
-import { searchTbGoods, searchJdGoods, getPddGoodsList, searchDyGoods, getSearchHot, parseTbGoods } from '../../api/product';
+import { searchTbGoods, searchJdGoods, getPddGoodsList, searchDyGoods, getSearchHot } from '../../api/product';
 import { normalizeProductList } from '../../utils/product';
+import { setPendingRebateInput } from '../../utils/rebateHistory';
 import { mockHotKeywords } from '../../mock/index';
 
 // 仅显式开发开关，默认关闭；线上禁止回落 mock
@@ -132,7 +133,7 @@ const MAX_HISTORY = 10;
 const PAGE_SIZE = 20;
 // S-2 提示语主稿（产品 seq-446 定稿；窄屏实测截断时回落短版「粘贴链接/口令，或搜关键词」，二级灰字方案作废）
 const SEARCH_PLACEHOLDER = '粘贴商品链接/口令，或搜标题/关键词';
-// 查返利三分支（规格 §3）：命中链接/口令特征 → parse；纯文字 → 现搜索；parse 不识别 → toast 禁假搜索
+// 查返利路由判定（产品 rebate-page-spec §1，撤跳商详改查返利页）：命中链接/口令特征 → 查返利页自动查询；纯文字 → 关键词搜索
 const LINK_TPWD_RE = /(https?:\/\/\S+)|([¥￥$]\S+[¥￥$])|淘口令/;
 const isLinkOrTpwd = (kw) => LINK_TPWD_RE.test(kw);
 
@@ -271,28 +272,18 @@ const onPaste = () => {
   });
 };
 
-// S-2 查返利三分支（产品 seq-446 定稿）：淘宝口令/链接 → parse 跳商详；纯文字 → 现搜索；
-// parse 不识别 → toast，禁假搜索/mock 回落
-const onSearch = async () => {
+// 查返利路由（产品 seq-491 冻结，撤「口令→parse→跳商详」分支）：链接/口令 → 跳查返利页并自动执行查询；
+// 纯文字 → 现关键词搜索结果列表（不落查返利历史）
+const onSearch = () => {
   const kw = keyword.value.trim();
   if (!kw || loading.value) return;
-  if (!isLinkOrTpwd(kw)) { doSearch(true); return; }
-  loading.value = true;
-  try {
-    const res = await parseTbGoods({ content: kw }, { silent: true });
-    const d = res?.data ?? res?.result ?? {};
-    const itemId = String(d.itemId || d.goodsId || '');
-    if (d.dataType === 'goods' && itemId) {
-      // 口令/链接不入搜索历史（历史词点击会重搜，长口令截断后必坏）
-      uni.navigateTo({ url: `/pages/product/detail?id=${itemId}&platform=tb` });
-    } else {
-      uni.showToast({ title: '未识别到有效商品链接/口令', icon: 'none' });
-    }
-  } catch (e) {
-    uni.showToast({ title: e?.message || '识别失败，请检查链接/口令', icon: 'none' });
-  } finally {
-    loading.value = false;
+  if (isLinkOrTpwd(kw)) {
+    // switchTab 不支持 query：storage 一次性交接输入，查返利页 onShow 消费
+    setPendingRebateInput(kw);
+    uni.switchTab({ url: '/pages/rebate/index' });
+    return;
   }
+  doSearch(true);
 };
 
 const clearKeyword = () => {
@@ -317,7 +308,8 @@ onLoad((opts) => {
   if (opts?.platform) currentPlatform.value = opts.platform;
   if (opts?.keyword) {
     keyword.value = decodeURIComponent(opts.keyword);
-    doSearch(true);
+    // auto=0：只回填输入不自动搜索（首页粘贴键路径）
+    if (opts.auto !== '0') doSearch(true);
   }
 });
 onReachBottom(() => { if (hasSearched.value) doSearch(false); });

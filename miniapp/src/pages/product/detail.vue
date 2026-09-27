@@ -168,7 +168,8 @@ const loadDetail = async () => {
   try {
     let res;
     switch (platform.value) {
-      case 'tb': res = await getTbGoodsDetail(params, opts); break;
+      // R-2（管理 seq-507 裁定）：/tao/goods/detail 后端收参键为 goodsId（Controller:121），传 id 必报「大淘客商品id不正确」
+      case 'tb': res = await getTbGoodsDetail({ goodsId: productId.value }, opts); break;
       case 'jd': res = await fetchJdDetail(params, opts); break;
       case 'pdd': res = await getPddGoodsDetail(params, opts); break;
       case 'dy': res = await getDyGoodsDetail(params, opts); break;
@@ -191,7 +192,8 @@ const onBuy = async () => {
     const params = { id: productId.value };
     const opts = { silent: true }; // 本页统一「获取链接失败」提示，避免双 toast
     switch (platform.value) {
-      case 'tb': res = await getTbGoodsWord(params, opts); break;
+      // R-2 同口径：/tao/goods/word 后端收参键为 goodsId（Controller:147）
+      case 'tb': res = await getTbGoodsWord({ goodsId: productId.value }, opts); break;
       case 'jd': res = await getJdGoodsWord(params, opts); break;
       case 'pdd': res = await getPddGoodsWord(params, opts); break;
       case 'dy': res = await getDyGoodsWord(params, opts); break;

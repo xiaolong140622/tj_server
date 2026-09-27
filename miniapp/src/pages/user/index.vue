@@ -266,7 +266,8 @@ const openProfile = () => {
 /* ---------- 导航 ---------- */
 const goLogin = () => uni.navigateTo({ url: '/pages/login/index' });
 // tabBar 页 navigateTo 必静默失败：统一 switchTab；spread 三段 tab 用全局意图传参（switchTab 不支持 query）
-const TAB_PAGES = ['/pages/index/index', '/pages/order/list', '/pages/user/spread', '/pages/user/index'];
+// 订单页已移出 tabBar（查返利轮，产品 §1）：走 navigateTo
+const TAB_PAGES = ['/pages/index/index', '/pages/rebate/index', '/pages/user/spread', '/pages/user/index'];
 const goPage = (url) => {
   if (!isLoggedIn.value) { goLogin(); return; }
   const [path, query] = url.split('?');
