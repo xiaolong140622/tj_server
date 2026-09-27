@@ -83,11 +83,11 @@
                       <view class="rc-divider"></view>
                       <view class="rc-foot">
                         <view class="rc-foot-btn" hover-class="rc-foot-btn--hover" @click="goDetail(g)">
-                          <text class="rc-foot-detail">查看详情 ›</text>
+                          <text class="rc-foot-detail" :class="{ 'rc-foot-off': !g.product.orderable }">查看详情 ›</text>
                         </view>
                         <view class="rc-foot-sep"></view>
                         <view class="rc-foot-btn" hover-class="rc-foot-btn--hover" @click="onOrderRebate(g)">
-                          <text class="rc-foot-order">下单返{{ g.product.reward ? ' ¥' + g.product.reward : '' }} ›</text>
+                          <text class="rc-foot-order" :class="{ 'rc-foot-off': !g.product.orderable }">下单返{{ g.product.reward ? ' ¥' + g.product.reward : '' }} ›</text>
                         </view>
                       </view>
                     </view>
@@ -97,7 +97,7 @@
                       <view class="tip-star" :style="{ backgroundImage: starIcon }"></view>
                       <text class="bubble-bot-text">付款时使用红包会导致订单失效！系统会自动抵扣，可取消。</text>
                     </view>
-                    <view class="more-link" hover-class="more-link--hover" @click="goMoreSearch(g)">
+                    <view class="more-link" v-if="g.product.title" hover-class="more-link--hover" @click="goMoreSearch(g)">
                       <view class="more-link-icon" :style="{ backgroundImage: pointIcon }"></view>
                       <text class="more-link-text">查看更多搜索结果 ›</text>
                     </view>
@@ -183,30 +183,39 @@ const runQuery = async (g, raw) => {
     if ((d.dataType && d.dataType !== 'goods') || !goodsId) {
       throw new Error('未识别到有效淘宝商品，请检查链接/口令');
     }
-    let detail = {};
-    try {
-      const dres = await getTbGoodsDetail({ goodsId }, { silent: true });
-      detail = dres?.result || dres?.data || {};
-    } catch (e) {
-      // R-2（JAVA 调研中）：详情接口对部分 parse id 报 400 → 卡片回落 parse 可得字段，价格缺失走空值口径
-      detail = {};
+    // 判定契约（JAVA seq-522，eb47649）：完整展示与否以 parse.data.goodsSign 为准——
+    // 非空 → 详情/转链全部用 goodsSign（可下单）；null（未收录）→ 空值口径 + 动作置灰，禁数字id再调 word/detail
+    const goodsSign = String(d.goodsSign || '');
+    let p = null;
+    let priceNum = 0;
+    let reward = null;
+    if (goodsSign) {
+      let detail = {};
+      try {
+        const dres = await getTbGoodsDetail({ goodsId: goodsSign }, { silent: true });
+        detail = dres?.result || dres?.data || {};
+      } catch (e) {
+        detail = {}; // 详情异常不炸整卡：字段走空值口径
+      }
+      p = normalizeProduct('tb', { ...detail, itemId: detail.itemId || goodsSign, goodsId: detail.goodsId || goodsSign });
+      priceNum = Number(p.price);
+      // 返现公式定稿（产品 seq-511，管理 seq-514 放行）：预估返现 = 券后价 ×(commissionRate/100)×(tbRebateScale/100)，
+      // 不乘 tbTimes；任一因子缺值 → null →「奖励 待计算」，禁 0 冒充
+      const info = await loadCommissionInfo();
+      const scale = Number(info?.tbRebateScale);
+      const rate = Number(p.commissionRate ?? detail.commissionRate);
+      reward = priceNum > 0 && rate > 0 && scale > 0
+        ? ((priceNum * rate) / 100 * scale / 100).toFixed(2)
+        : null;
     }
-    const p = normalizeProduct('tb', { ...detail, itemId: detail.itemId || goodsId, goodsId: detail.goodsId || goodsId });
-    const priceNum = Number(p.price);
-    // 返现公式定稿（产品 seq-511，管理 seq-514 放行）：预估返现 = 券后价 ×(commissionRate/100)×(tbRebateScale/100)，
-    // 不乘 tbTimes；任一因子缺值 → null →「奖励 待计算」，禁 0 冒充
-    const info = await loadCommissionInfo();
-    const scale = Number(info?.tbRebateScale);
-    const rate = Number(p.commissionRate ?? detail.commissionRate);
-    const reward = priceNum > 0 && rate > 0 && scale > 0
-      ? ((priceNum * rate) / 100 * scale / 100).toFixed(2)
-      : null;
     g.product = {
-      id: String(p.id || goodsId),
-      title: p.title || '',
-      pic: p.mainPic || '',
+      id: goodsSign || goodsId,
+      goodsSign,
+      orderable: !!goodsSign,
+      title: p?.title || '',
+      pic: p?.mainPic || '',
       price: priceNum > 0 ? p.price : '',
-      couponAmount: p.couponAmount || 0,
+      couponAmount: p?.couponAmount || 0,
       reward: reward || '',
     };
     g.status = 'ok';
@@ -225,8 +234,15 @@ const retryGroup = (g) => {
   runQuery(g, g.input);
 };
 
+// 未收录品（goodsSign null）：查看详情/下单返置灰走 toast（JAVA seq-522 判定契约）
+const isOrderable = (g) => !!(g.product && g.product.goodsSign);
+
 const goDetail = (g) => {
-  uni.navigateTo({ url: `/pages/product/detail?id=${encodeURIComponent(g.product.id)}&platform=tb` });
+  if (!isOrderable(g)) {
+    uni.showToast({ title: '该商品未收录返利库，暂无法查看详情', icon: 'none' });
+    return;
+  }
+  uni.navigateTo({ url: `/pages/product/detail?id=${encodeURIComponent(g.product.goodsSign)}&platform=tb` });
 };
 
 const goMoreSearch = (g) => {
@@ -235,10 +251,14 @@ const goMoreSearch = (g) => {
   uni.navigateTo({ url: `/pages/search/index?platform=tb&keyword=${encodeURIComponent(kw)}` });
 };
 
-// 下单返¥X：转链取口令 → 复制成功 toast（产品 §3），失败 toast，禁假成功
+// 下单返¥X：转链取口令 → 复制成功 toast（产品 §3），失败 toast，禁假成功；禁数字id调 word（JAVA 契约）
 const onOrderRebate = async (g) => {
+  if (!isOrderable(g)) {
+    uni.showToast({ title: '商品未收录，暂无法生成下单口令', icon: 'none' });
+    return;
+  }
   try {
-    const res = await getTbGoodsWord({ goodsId: g.product.id }, { silent: true });
+    const res = await getTbGoodsWord({ goodsId: g.product.goodsSign }, { silent: true });
     const d = res?.result || res?.data || {};
     const word = d.password || d.tbPwd || d.content || d.model || d.shortUrl || d.clickUrl || d.url || '';
     if (!word) throw new Error('empty');
@@ -466,6 +486,7 @@ loadFirstPage();
 .rc-foot-btn--hover { background: #FAFBFC; }
 .rc-foot-detail { font-size: 28rpx; color: #1F2126; font-weight: 500; }
 .rc-foot-order { font-size: 28rpx; color: #FF6B35; font-weight: 600; }
+.rc-foot-off { color: #B6BAC2 !important; font-weight: 400; }
 .rc-foot-sep { width: 1rpx; height: 40rpx; background: #F2F3F5; }
 
 .order-hint { font-size: 22rpx; color: #B6BAC2; align-self: center; }
