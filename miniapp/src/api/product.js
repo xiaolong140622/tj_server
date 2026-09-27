@@ -19,6 +19,8 @@ const detailParams = (arg, keys) => {
 
 export const getTbGoodsList = (params, opts) => get('/tao/goods/list', params, opts);
 export const searchTbGoods = (params, opts) => get('/tao/goods/search', params, opts);
+// S-2 口令/链接识别（产品 seq-446 定稿）：GET /tao/goods/parse?content=，成功 {code:0,data:GoodsParseVo}，失败 code:-1
+export const parseTbGoods = (params, opts) => get('/tao/goods/parse', params, opts);
 export const getTbGoodsDetail = (params, opts) => get('/tao/goods/detail', params, opts);
 export const getTbGoodsWord = (params, opts) => get('/tao/goods/word', params, opts);
 export const getTbCategory = (opts) => get('/tao/goods/category', {}, opts);

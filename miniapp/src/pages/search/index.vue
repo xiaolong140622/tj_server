@@ -1,27 +1,43 @@
 <template>
   <view class="page-search">
     <view class="search-header">
-      <view class="back-btn" @click="goBack">
-        <view class="back-icon"></view>
-      </view>
-      <view class="search-input-wrap" :class="{ 'search-input-wrap--focus': inputFocus }">
-        <view class="input-icon"></view>
-        <input
-          class="search-input"
-          v-model="keyword"
-          placeholder="搜商品，领奖励"
-          placeholder-class="search-input-ph"
-          confirm-type="search"
-          focus
-          @focus="inputFocus = true"
-          @blur="inputFocus = false"
-          @confirm="onSearch"
-        />
-        <view class="clear-btn" v-if="keyword" @click="clearKeyword">
-          <view class="clear-icon"></view>
+      <view class="header-row1">
+        <view class="back-btn" @click="goBack">
+          <view class="back-icon"></view>
+        </view>
+        <view class="search-input-wrap" :class="{ 'search-input-wrap--focus': inputFocus }">
+          <view class="input-icon"></view>
+          <input
+            class="search-input"
+            v-model="keyword"
+            :placeholder="SEARCH_PLACEHOLDER"
+            placeholder-class="search-input-ph"
+            confirm-type="search"
+            focus
+            @focus="inputFocus = true"
+            @blur="inputFocus = false"
+            @confirm="onSearch"
+          />
+          <view class="clear-btn" v-if="keyword" @click="clearKeyword">
+            <view class="clear-icon"></view>
+          </view>
         </view>
       </view>
-      <text class="search-btn" @click="onSearch">搜索</text>
+      <!-- S-2（UI 规格 shared/searchbox-redesign-spec-v1.md §1 方案A 双行式）：Row2 粘贴幽灵键 + 查返利主按钮 -->
+      <view class="header-row2">
+        <view class="paste-btn" hover-class="paste-btn--hover" @click="onPaste">
+          <text class="paste-btn-text">粘贴</text>
+        </view>
+        <view
+          class="search-go-btn"
+          :class="{ 'search-go-btn--disabled': !canSearch, 'search-go-btn--loading': loading }"
+          hover-class="search-go-btn--hover"
+          @click="onSearch"
+        >
+          <view class="btn-spinner" v-if="loading"></view>
+          <text class="search-go-btn-text">{{ loading ? '查询中…' : '查返利' }}</text>
+        </view>
+      </view>
     </view>
 
     <view class="search-body" v-if="!hasSearched">
@@ -83,7 +99,7 @@
           :product="item"
           @click="goDetail"
         />
-        <FailRetry v-if="searchError && !productList.length" text="搜索失败，请检查网络" @retry="doSearch(true)" />
+        <FailRetry v-if="searchError && !productList.length" :text="searchErrorText" @retry="doSearch(true)" />
         <Loading :visible="loading && productList.length > 0" text="加载中..." />
         <Empty
           v-if="!loading && !searchError && !productList.length"
@@ -98,14 +114,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { onLoad, onReachBottom } from '@dcloudio/uni-app';
 import PlatformTab from '../../components/PlatformTab.vue';
 import ProductCard from '../../components/ProductCard.vue';
 import Loading from '../../components/Loading.vue';
 import Empty from '../../components/Empty.vue';
 import FailRetry from '../../components/FailRetry.vue';
-import { searchTbGoods, searchJdGoods, getPddGoodsList, searchDyGoods, getSearchHot } from '../../api/product';
+import { searchTbGoods, searchJdGoods, getPddGoodsList, searchDyGoods, getSearchHot, parseTbGoods } from '../../api/product';
+import { normalizeProductList } from '../../utils/product';
 import { mockHotKeywords } from '../../mock/index';
 
 // 仅显式开发开关，默认关闭；线上禁止回落 mock
@@ -113,6 +130,11 @@ const USE_MOCK = false;
 const HISTORY_KEY = 'search_history';
 const MAX_HISTORY = 10;
 const PAGE_SIZE = 20;
+// S-2 提示语主稿（产品 seq-446 定稿；窄屏实测截断时回落短版「粘贴链接/口令，或搜关键词」，二级灰字方案作废）
+const SEARCH_PLACEHOLDER = '粘贴商品链接/口令，或搜标题/关键词';
+// 查返利三分支（规格 §3）：命中链接/口令特征 → parse；纯文字 → 现搜索；parse 不识别 → toast 禁假搜索
+const LINK_TPWD_RE = /(https?:\/\/\S+)|([¥￥$]\S+[¥￥$])|淘口令/;
+const isLinkOrTpwd = (kw) => LINK_TPWD_RE.test(kw);
 
 const currentPlatform = ref('tb');
 const keyword = ref('');
@@ -120,6 +142,7 @@ const hotList = ref([]);
 const productList = ref([]);
 const loading = ref(false);
 const searchError = ref(false);
+const searchErrorText = ref('搜索失败，请检查网络');
 const hasSearched = ref(false);
 const hasMore = ref(true);
 const page = ref(1);
@@ -176,6 +199,17 @@ const searchByPlatform = (params, opts) => {
   }
 };
 
+// 四平台搜索入参键名各异（8019 实测）：tb=keyWords、jd=keyword+pageId/pageSize（统一 VO）、
+// pdd=word、dy=keyword；参数名错传时后端分别 500/空 list（S-1 顺带修复，同路径核查）
+const buildSearchParams = (kw) => {
+  switch (currentPlatform.value) {
+    case 'tb': return { keyWords: kw, page: page.value, limit: PAGE_SIZE };
+    case 'jd': return { keyword: kw, pageId: page.value, pageSize: PAGE_SIZE };
+    case 'pdd': return { word: kw, page: page.value, limit: PAGE_SIZE };
+    default: return { keyword: kw, page: page.value, limit: PAGE_SIZE };
+  }
+};
+
 const doSearch = async (reset = false) => {
   if (loading.value) return;
   const kw = keyword.value.trim();
@@ -195,18 +229,25 @@ const doSearch = async (reset = false) => {
     return;
   }
   try {
-    const params = currentPlatform.value === 'jd'
-      ? { keyword: kw, pageId: page.value, pageSize: PAGE_SIZE }
-      : { keyword: kw, page: page.value, limit: PAGE_SIZE };
+    const params = buildSearchParams(kw);
     const res = await searchByPlatform(params, { silent: true });
     const d = res?.result ?? res?.data ?? [];
-    const list = Array.isArray(d) ? d : (d.list || d.content || d.rows || []);
-    if (list.length < PAGE_SIZE) hasMore.value = false;
+    const rawList = Array.isArray(d) ? d : (d.list || d.content || d.rows || []);
+    if (rawList.length < PAGE_SIZE) hasMore.value = false;
+    // S-1（管理 seq-437 根因定稿）：四平台原始 VO 键名各异（JD 统一 VO 为 img/startPrice），
+    // ProductCard 只认归一后形状（mainPic/price）——必须过 normalizeProductList 再入列表，否则 ¥0.00+空图
+    const list = normalizeProductList(currentPlatform.value, rawList);
     productList.value = reset ? list : [...productList.value, ...list];
     page.value++;
   } catch (e) {
     if (!productList.value.length) {
+      // dy 上游官方政策下线（8019 实测 code=400）：给可行动文案而非「检查网络」，与首页口径一致
+      searchErrorText.value = currentPlatform.value === 'dy'
+        ? '抖音平台接口临时下线，切其他平台看看'
+        : (e?.message || '搜索失败，请检查网络');
       searchError.value = true;
+      // S-2 键态「失败」：按钮恢复可用 + toast 后端 message（规格 §1.3），结果区同步走 FailRetry
+      uni.showToast({ title: searchErrorText.value, icon: 'none' });
     } else {
       hasMore.value = false;
       uni.showToast({ title: '加载更多失败', icon: 'none' });
@@ -216,7 +257,43 @@ const doSearch = async (reset = false) => {
   }
 };
 
-const onSearch = () => doSearch(true);
+const canSearch = computed(() => !!keyword.value.trim());
+
+// S-2 粘贴键：写入输入框但不自动触发搜索（防误触跳转，等用户按「查返利」确认）
+const onPaste = () => {
+  uni.getClipboardData({
+    success: (r) => {
+      const text = (r.data || '').trim();
+      if (!text) { uni.showToast({ title: '剪贴板暂无内容', icon: 'none' }); return; }
+      keyword.value = text;
+    },
+    fail: () => uni.showToast({ title: '剪贴板暂无内容', icon: 'none' }),
+  });
+};
+
+// S-2 查返利三分支（产品 seq-446 定稿）：淘宝口令/链接 → parse 跳商详；纯文字 → 现搜索；
+// parse 不识别 → toast，禁假搜索/mock 回落
+const onSearch = async () => {
+  const kw = keyword.value.trim();
+  if (!kw || loading.value) return;
+  if (!isLinkOrTpwd(kw)) { doSearch(true); return; }
+  loading.value = true;
+  try {
+    const res = await parseTbGoods({ content: kw }, { silent: true });
+    const d = res?.data ?? res?.result ?? {};
+    const itemId = String(d.itemId || d.goodsId || '');
+    if (d.dataType === 'goods' && itemId) {
+      // 口令/链接不入搜索历史（历史词点击会重搜，长口令截断后必坏）
+      uni.navigateTo({ url: `/pages/product/detail?id=${itemId}&platform=tb` });
+    } else {
+      uni.showToast({ title: '未识别到有效商品链接/口令', icon: 'none' });
+    }
+  } catch (e) {
+    uni.showToast({ title: e?.message || '识别失败，请检查链接/口令', icon: 'none' });
+  } finally {
+    loading.value = false;
+  }
+};
 
 const clearKeyword = () => {
   keyword.value = '';
@@ -257,14 +334,24 @@ onMounted(() => {
 }
 
 .search-header {
-  display: flex;
-  align-items: center;
-  padding: 16rpx 20rpx;
   background: #fff;
-  gap: 16rpx;
+  padding: 16rpx 20rpx 20rpx;
   position: sticky;
   top: 0;
   z-index: 10;
+}
+.header-row1 {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+.header-row2 {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16rpx;
+  height: 72rpx;
+  margin-top: 8rpx;
 }
 .back-btn {
   width: 56rpx;
@@ -308,7 +395,7 @@ onMounted(() => {
   color: #1F2126;
   height: 68rpx;
 }
-.search-input-ph { color: #B6BAC2; font-size: 28rpx; }
+.search-input-ph { color: #B6BAC2; font-size: 24rpx; }
 .clear-btn {
   width: 36rpx;
   height: 36rpx;
@@ -326,13 +413,54 @@ onMounted(() => {
   background-size: 100% 100%;
   background-repeat: no-repeat;
 }
-.search-btn {
-  color: #FF6B35;
-  font-size: 28rpx;
-  font-weight: 600;
-  white-space: nowrap;
-  flex-shrink: 0;
+.paste-btn {
+  display: flex;
+  align-items: center;
+  padding: 12rpx 32rpx;
+  border-radius: 999rpx;
+  background: #fff;
+  border: 1rpx solid rgba(255, 107, 53, 0.4);
 }
+.paste-btn--hover { background: #FFF7F0; }
+.paste-btn-text {
+  font-size: 26rpx;
+  color: #FF6B35;
+  font-weight: 500;
+}
+.search-go-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  height: 64rpx;
+  padding: 0 40rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #FF6B35, #FF8F65);
+  box-shadow: 0 6rpx 16rpx rgba(255, 107, 53, 0.35);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.search-go-btn--hover { transform: scale(0.97); opacity: 0.9; }
+.search-go-btn-text {
+  font-size: 28rpx;
+  color: #fff;
+  font-weight: 600;
+}
+.search-go-btn--disabled {
+  background: #F3F4F6;
+  box-shadow: none;
+}
+.search-go-btn--disabled .search-go-btn-text { color: #B6BAC2; }
+.search-go-btn--loading { pointer-events: none; }
+.btn-spinner {
+  width: 28rpx;
+  height: 28rpx;
+  border: 3rpx solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btn-spin 0.7s linear infinite;
+}
+.search-go-btn--disabled .btn-spinner { border-color: rgba(182, 186, 194, 0.4); border-top-color: #B6BAC2; }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
 
 .search-body {
   background: #fff;

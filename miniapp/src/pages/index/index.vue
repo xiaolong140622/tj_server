@@ -4,7 +4,7 @@
       <view class="search-bar" hover-class="search-bar--hover" @click="goSearch">
         <view class="search-icon"></view>
         <text class="search-prefix">搜索</text>
-        <text class="search-placeholder">{{ hotWord || '搜索商品名称，找同款更省钱' }}</text>
+        <text class="search-placeholder">{{ hotWord || '粘贴链接/口令，或搜关键词' }}</text>
       </view>
     </view>
 
