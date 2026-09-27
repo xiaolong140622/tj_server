@@ -9,11 +9,13 @@ import com.mailvor.modules.tk.param.jd.GoodsListJDParam;
 import com.mailvor.modules.tk.service.DataokeService;
 import com.mailvor.modules.tk.service.JdService;
 import com.mailvor.modules.tk.service.KuService;
+import com.mailvor.modules.tk.vo.jd.JdKuGoodsDetailVO;
 import com.mailvor.modules.tk.vo.jd.JdKuSearchListVO;
 import com.mailvor.modules.tk.vo.jd.JdUnionCommonGoodsListVO;
 import com.mailvor.modules.tk.vo.jd.JdUnionCommonGoodsWordVO;
 import com.mailvor.modules.user.domain.MwUser;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,6 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import javax.annotation.Resource;
 import javax.validation.Valid;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -65,7 +69,9 @@ public class DataokeJDController {
     }
 
     /**
-     * 获取京东商品详情
+     * 获取京东商品详情（C-3：联盟官方通道为主，大淘客DTK为补充降级）
+     * 成功：{code:200,msg:success,data:{goodsId,title,price,originalPrice,couponAmount,commission,commissionRate,subsidyRate,subSideRate,images,...}}
+     * 双通道均失败：透传上游失败信封（code!=200），前端 F-11 兜底链（/ku/jd/goods/detail）继续生效
      * @param goodsId
      * @param itemId
      * @return
@@ -73,8 +79,52 @@ public class DataokeJDController {
     @GetMapping(value = "/goods/detail")
     public JSONObject getGoodsDetail(@RequestParam(required = false) String goodsId,
                                      @RequestParam(required = false) String itemId) {
-
+        JdKuSearchListVO official = jdService.goodsDetailOfficial(goodsId, itemId);
+        if (official.getCode() != null && official.getCode() == 200
+                && official.getData() != null && !official.getData().isEmpty()) {
+            JSONObject out = new JSONObject();
+            out.put("code", 200);
+            out.put("msg", "success");
+            out.put("data", toDetailView(official.getData().get(0)));
+            return out;
+        }
+        log.warn("JD联盟官方详情通道失败(code={}, msg={})，降级大淘客通道", official.getCode(), official.getMsg());
         return service.goodsDetailJD(goodsId, itemId);
+    }
+
+    /**
+     * 官方通道条目 → 详情页视图口径（字段名对齐 miniapp product/detail.vue 消费契约；
+     * B-2 冻结契约：subsidyRate/subSideRate/commissionRate null 即隐藏，禁 0 填充）
+     */
+    private JSONObject toDetailView(JdKuGoodsDetailVO d) {
+        JSONObject v = new JSONObject();
+        v.put("goodsId", d.getGoodsId());
+        v.put("title", d.getTitle());
+        v.put("price", d.getStartPrice());
+        v.put("originalPrice", d.getEndPrice());
+        v.put("couponAmount", d.getCoupon());
+        v.put("couponLink", d.getCouponLink());
+        v.put("commission", d.getFee());
+        v.put("commissionRate", d.getCommissionRate());
+        v.put("subsidyRate", d.getSubsidyRate());
+        v.put("subSideRate", d.getSubSideRate());
+        v.put("sales", d.getSales());
+        v.put("comments", d.getComments());
+        v.put("shopName", d.getShopName());
+        v.put("platform", d.getPlatform());
+        List<String> imgs = new ArrayList<>();
+        if (StringUtils.isNotBlank(d.getImg())) {
+            imgs.add(d.getImg());
+        }
+        if (StringUtils.isNotBlank(d.getDetails())) {
+            for (String s : d.getDetails().split("[|,]")) {
+                if (StringUtils.isNotBlank(s) && !imgs.contains(s)) {
+                    imgs.add(s);
+                }
+            }
+        }
+        v.put("images", String.join("|", imgs));
+        return v;
     }
 
     /**
@@ -104,13 +154,17 @@ public class DataokeJDController {
 
     }
     /**
-     * 获取京东商品榜单
+     * 获取京东商品榜单（收口：上游异常/SDK抛出统一返回 {code:-1,msg} 失败信封，不再冒泡500）
      * @param param
      * @return
-     * @throws Exception
      */
     @GetMapping(value = "/rank/list")
-    public JdUnionCommonGoodsListVO getRankList(GoodsListJDParam param) throws Exception {
-        return jdService.listRank(param);
+    public JdUnionCommonGoodsListVO getRankList(GoodsListJDParam param) {
+        try {
+            return jdService.listRank(param);
+        } catch (Exception e) {
+            log.warn("京东榜单通道调用失败: {}", e.getMessage());
+            return JdUnionCommonGoodsListVO.builder().code(-1).msg("京东榜单上游异常").build();
+        }
     }
 }

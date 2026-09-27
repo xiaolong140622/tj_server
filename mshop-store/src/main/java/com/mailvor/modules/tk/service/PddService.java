@@ -2,7 +2,6 @@ package com.mailvor.modules.tk.service;
 
 import com.mailvor.modules.tk.config.PddConfig;
 import com.mailvor.modules.tk.param.QueryPddParam;
-import com.pdd.pop.sdk.common.util.JsonUtil;
 import com.pdd.pop.sdk.http.PopClient;
 import com.pdd.pop.sdk.http.PopHttpClient;
 import com.pdd.pop.sdk.http.api.pop.request.PddDdkMemberAuthorityQueryRequest;
@@ -57,7 +56,7 @@ public class PddService {
 
             return getClient().syncInvoke(request);
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("拼多多官方订单通道调用失败: {}", e.getMessage());
         }
         return null;
     }
@@ -77,7 +76,8 @@ public class PddService {
             PddDdkMemberAuthorityQueryResponse response = getClient().syncInvoke(request);
             return response.getAuthorityQueryResponse().getBind();
         } catch (Exception e) {
-            e.printStackTrace();
+            // 上游异常按未授权(0)口径收口，与「未绑定」同语义；真实原因记日志便于排障
+            log.warn("拼多多官方授权查询通道调用失败(按未授权口径返回0): {}", e.getMessage());
         }
         return 0;
     }
@@ -91,39 +91,8 @@ public class PddService {
 
             return getClient().syncInvoke(request).getRpPromotionUrlGenerateResponse().getUrlList();
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("拼多多官方授权链接通道调用失败: {}", e.getMessage());
         }
         return null;
-    }
-
-    public static void main(String[] args) throws Exception {
-
-        String clientId = "64d7e6e0e3b94b52bad28e721b4e9c0f";
-        String clientSecret = "0caeffa8e131687f1aac5af2821528ba99c92639";
-          String pid = "1784892_252288888";
-        PopClient client = new PopHttpClient(clientId, clientSecret);
-//
-//        PddDdkOrderListRangeGetRequest request = new PddDdkOrderListRangeGetRequest();
-//        request.setEndTime("2022-06-23 23:00:00");
-//        request.setPageSize(300);
-//        request.setStartTime("2022-06-23 00:00:00");
-//        PddDdkOrderListRangeGetResponse response = client.syncInvoke(request);
-//        System.out.println(JsonUtil.transferToJson(response));
-
-//        PopClient client = new PopHttpClient(clientId, clientSecret);
-//
-//        PddDdkMemberAuthorityQueryRequest request = new PddDdkMemberAuthorityQueryRequest();
-//        request.setCustomParameters("{\"uid\":\""+2 + "\"}");
-//        request.setPid(pid);
-//        PddDdkMemberAuthorityQueryResponse response = client.syncInvoke(request);
-//        System.out.println(JsonUtil.transferToJson(response));
-
-        PddDdkRpPromUrlGenerateRequest request = new PddDdkRpPromUrlGenerateRequest();
-        request.setChannelType(10);
-        request.setCustomParameters("{\"uid\":\""+2 + "\"}");
-        request.setPIdList(Collections.singletonList(pid));
-
-        PddDdkRpPromUrlGenerateResponse response = client.syncInvoke(request);
-        System.out.println(JsonUtil.transferToJson(response));
     }
 }

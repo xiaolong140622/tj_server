@@ -4,7 +4,6 @@
  */
 package com.mailvor.modules.tk.service;
 
-import com.alibaba.fastjson.JSON;
 import com.jd.open.api.sdk.DefaultJdClient;
 import com.jd.open.api.sdk.JdClient;
 import com.jd.open.api.sdk.domain.kplunion.GoodsService.request.query.BigFieldGoodsReq;
@@ -38,6 +37,7 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -198,6 +198,88 @@ public class JdService {
         return item;
     }
 
+    /**
+     * C-3 京东联盟官方详情通道（union.open.goods.query，加密 itemId / 数字 skuId 双通道；
+     * bigfield 补详情图，尽力而为不影响主响应）。输出归一为 JdKuSearchListVO（code==200 成功），
+     * 任何上游异常/未命中/非200 一律收口为 {code,msg} 信封（不抛出、不冒泡500），
+     * 由调用方（DataokeJDController /jd/goods/detail）按「联盟为主/聚合站为补」降级 DTK 通道。
+     */
+    public JdKuSearchListVO goodsDetailOfficial(String goodsId, String itemId) {
+        JdKuSearchListVO vo = new JdKuSearchListVO();
+        String id = StringUtils.isNotBlank(itemId) ? itemId : goodsId;
+        if (StringUtils.isBlank(id) || "0".equals(id)) {
+            vo.setCode(-1);
+            vo.setMsg("京东商品ID不能为空");
+            return vo;
+        }
+        try {
+            JdClient client = getJdClient();
+            UnionOpenGoodsQueryRequest request = new UnionOpenGoodsQueryRequest();
+            GoodsReq goodsReq = new GoodsReq();
+            if (id.matches("\\d+")) {
+                goodsReq.setSkuIds(new Long[]{Long.valueOf(id)});
+            } else {
+                goodsReq.setItemIds(new String[]{id});
+            }
+            goodsReq.setPageIndex(1);
+            goodsReq.setPageSize(1);
+            request.setGoodsReqDTO(goodsReq);
+            request.setVersion("1.0");
+            GoodsQueryResult result = client.execute(request).getQueryResult();
+            if (result == null) {
+                vo.setCode(-1);
+                vo.setMsg("京东联盟详情上游无响应");
+                return vo;
+            }
+            vo.setCode(result.getCode());
+            vo.setMsg(result.getMessage());
+            if (result.getCode() != 200 || result.getData() == null || result.getData().length == 0) {
+                if (vo.getCode() != null && vo.getCode() == 200) {
+                    vo.setCode(-1);
+                }
+                if (StringUtils.isBlank(vo.getMsg())) {
+                    vo.setMsg("京东联盟详情未命中商品");
+                }
+                return vo;
+            }
+            GoodsResp goods = result.getData()[0];
+            JdKuGoodsDetailVO item = toUnifiedItem(goods);
+            fillDetailImages(client, goods, item);
+            vo.setCode(200);
+            vo.setMsg("success");
+            vo.setData(Collections.singletonList(item));
+            return vo;
+        } catch (Exception e) {
+            log.warn("京东联盟官方详情通道调用失败: {}", e.getMessage());
+            vo.setCode(-1);
+            vo.setMsg("京东联盟详情上游异常");
+            return vo;
+        }
+    }
+
+    /**
+     * bigfield 详情图尽力而为：失败仅记日志、保留主图口径（价格/佣金/券已由 goods.query 提供）
+     */
+    private void fillDetailImages(JdClient client, GoodsResp goods, JdKuGoodsDetailVO item) {
+        String bigfieldId = StringUtils.isNotBlank(goods.getCallerItemId())
+                ? goods.getCallerItemId() : goods.getItemId();
+        if (StringUtils.isBlank(bigfieldId)) {
+            return;
+        }
+        try {
+            BigfieldQueryResult bf = goodsDetailUnion(bigfieldId);
+            if (bf == null || bf.getCode() != 200 || bf.getData() == null || bf.getData().length == 0) {
+                return;
+            }
+            String detailImages = bf.getData()[0].getDetailImages();
+            if (StringUtils.isNotBlank(detailImages)) {
+                item.setDetails(detailImages);
+            }
+        } catch (Exception e) {
+            log.warn("京东联盟bigfield详情图通道调用失败(降级仅主图): {}", e.getMessage());
+        }
+    }
+
     @SneakyThrows
     private BigfieldQueryResult goodsDetailUnion(String itemId) {
         JdClient client = getJdClient();
@@ -209,10 +291,6 @@ public class JdService {
         return client.execute(request).getQueryResult();
     }
 
-    //    public JdKuCommonSearchListVO goodsDetail(String itemId) {
-//        BigfieldQueryResult queryResult = goodsDetailUnion(itemId);
-//        //todo 后续实现
-//    }
     /**
      * 获取商品短链接
      * @param itemId
@@ -291,75 +369,21 @@ public class JdService {
         orderReq.setPageSize(param.getPageSize());
         request.setOrderReq(orderReq);
         request.setVersion("1.0");
-        UnionOpenOrderRowQueryResponse response= null;
+        UnionOpenOrderRowQueryResponse response = null;
         try {
             response = client.execute(request);
             return response.getQueryResult();
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("京东联盟订单通道调用失败: {}", e.getMessage());
         }
         return null;
     }
-    private JdClient getJdClient() {
+
+    // 测试缝：单测通过 spy 覆盖注入 mock JdClient；生产行为不变
+    protected JdClient getJdClient() {
         JdClient client=new DefaultJdClient(jdConfig.getServer(),
                 null,
                 jdConfig.getAppKey(),jdConfig.getAppSecret());
         return client;
-    }
-    public static void main(String[] args) throws Exception {
-
-        String url = "https://api.jd.com/routerjson";
-        String clientId = "a5a67f64a5491868c8436301";
-        String clientSecret = "d22224c5a8bb6e638cb06";
-//        PopClient client = new PopHttpClient(clientId, clientSecret);
-//
-//        PddDdkOrderListRangeGetRequest request = new PddDdkOrderListRangeGetRequest();
-//        request.setEndTime("2022-06-23 23:00:00");
-//        request.setPageSize(300);
-//        request.setStartTime("2022-06-23 00:00:00");
-//        PddDdkOrderListRangeGetResponse response = client.syncInvoke(request);
-//        System.out.println(JsonUtil.transferToJson(response));
-
-        JdClient client=new DefaultJdClient(url, null, clientId,clientSecret);
-//        UnionOpenGoodsRankQueryRequest request=new UnionOpenGoodsRankQueryRequest();
-//        RankGoodsReq rankGoodsReq=new RankGoodsReq();
-//        rankGoodsReq.setRankId(200000L);
-//        rankGoodsReq.setSortType(3);
-//        rankGoodsReq.setPageIndex(1);
-//        rankGoodsReq.setPageSize(10);
-//        request.setRankGoodsReq(rankGoodsReq);
-//        request.setVersion("1.0");
-//        UnionOpenGoodsRankQueryResponse response = client.execute(request);
-//        System.out.println(JSON.toJSONString(response.getQueryResult()));
-
-//        UnionOpenGoodsBigfieldQueryRequest request=new UnionOpenGoodsBigfieldQueryRequest();
-//        BigFieldGoodsReq goodsReq=new BigFieldGoodsReq();
-//        goodsReq.setItemIds(Arrays.asList("28HYqoPfcmj38vCmWNacVosZ_3bnREOCd6cyii0Eb7l").toArray(new String[0]));
-//        request.setGoodsReq(goodsReq);
-//        request.setVersion("1.0");
-//        System.out.println(JSON.toJSONString(client.execute(request).getQueryResult()));
-
-//        UnionOpenPromotionCommonGetRequest request=new UnionOpenPromotionCommonGetRequest();
-//        PromotionCodeReq promotionCodeReq=new PromotionCodeReq();
-//        promotionCodeReq.setMaterialId("CGVm8tBjeQAy37yXTeYN9Nw6_3GHvBWMeRevlvCwYT8");
-//        promotionCodeReq.setSiteId("4100889962");
-//        promotionCodeReq.setSubUnionId("1");
-//        promotionCodeReq.setCouponUrl("https://coupon.m.jd.com/coupons/show.action?linkKey=AAROH_xIpeffAs_-naABEFoex3wz1P2XHbwb2i6uQXWVbRKXorkR6Rf_siHaV3y2-SKueMvRcbdaBaAD7Tk4dKAIm65O_w");
-//        promotionCodeReq.setSceneId(1);
-//        request.setPromotionCodeReq(promotionCodeReq);
-//        request.setVersion("1.0");
-//        System.out.println(JSON.toJSONString(client.execute(request).getGetResult()));
-
-        UnionOpenOrderRowQueryRequest request=new UnionOpenOrderRowQueryRequest();
-        OrderRowReq orderReq=new OrderRowReq();
-        orderReq.setStartTime("2024-12-07 13:08:00");
-        orderReq.setEndTime("2024-12-07 13:10:00");
-        orderReq.setType(3);
-        orderReq.setPageIndex(1);
-        orderReq.setPageSize(10);
-        request.setOrderReq(orderReq);
-        request.setVersion("1.0");
-        UnionOpenOrderRowQueryResponse response=client.execute(request);
-        System.out.println(JSON.toJSONString(response.getQueryResult()));
     }
 }

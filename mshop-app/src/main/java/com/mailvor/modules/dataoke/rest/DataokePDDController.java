@@ -1,6 +1,7 @@
 package com.mailvor.modules.dataoke.rest;
 
 import com.alibaba.fastjson.JSONObject;
+import com.mailvor.api.ApiCode;
 import com.mailvor.api.ApiResult;
 import com.mailvor.common.bean.LocalUser;
 import com.mailvor.common.interceptor.AuthCheck;
@@ -70,6 +71,10 @@ public class DataokePDDController {
     @GetMapping(value = "/auth")
     public ApiResult auth() {
         List<PddDdkRpPromUrlGenerateResponse.RpPromotionUrlGenerateResponseUrlListItem> urlList = pddService.auth(LocalUser.getUser().getUid());
+        if (urlList == null) {
+            // 官方通道异常收口：不再返回 ok(null)（前端会误判授权成功），给明确失败信封
+            return ApiResult.result(ApiCode.FAIL, "拼多多授权链接生成上游异常，请稍后重试", null);
+        }
         return ApiResult.ok(urlList);
     }
     @UserCheck
