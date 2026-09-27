@@ -253,6 +253,12 @@ const goMoreSearch = (g) => {
 };
 
 // 下单返¥X：转链取口令 → 复制成功 toast（产品 §3），失败 toast，禁假成功；禁数字id调 word（JAVA 契约）
+// 失败两口径（spec §3 v1.0 变更注记，产品 seq-594 裁定）：
+// ①无法定位类（word 400/业务错误，含成功信封缺口令字段兜底）→ 引导语，撤「请重试」（此类重试无效须给出口）
+// ②瞬时服务异常类（网络/超时/5xx，即 fail 回调 errMsg 或非 200 statusCode）→ 维持「请稍后重试」
+const isTransientFail = (e) =>
+  !!e && typeof e === 'object' && (e.errMsg !== undefined || (e.statusCode !== undefined && e.statusCode !== 200));
+
 const onOrderRebate = async (g) => {
   if (!isOrderable(g)) {
     uni.showToast({ title: '暂无法定位该商品的转链信息，无法生成下单口令', icon: 'none' });
@@ -269,7 +275,12 @@ const onOrderRebate = async (g) => {
       fail: () => uni.showToast({ title: '暂时无法获取下单口令，请稍后重试', icon: 'none' }),
     });
   } catch (e) {
-    uni.showToast({ title: '暂时无法获取下单口令，请稍后重试', icon: 'none' });
+    uni.showToast({
+      title: isTransientFail(e)
+        ? '暂时无法获取下单口令，请稍后重试'
+        : '暂无法定位该商品的转链信息，可用商品口令/搜索进入',
+      icon: 'none',
+    });
   }
 };
 
