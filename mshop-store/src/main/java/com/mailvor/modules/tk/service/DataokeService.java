@@ -138,7 +138,16 @@ public class DataokeService {
 
     public JSONObject goodsDetail(String goodsId) {
         DtkGoodsDetailsRequest request = new DtkGoodsDetailsRequest();
-        request.setGoodsId(goodsId);
+        if (StringUtils.isNotBlank(goodsId) && goodsId.matches("\\d+")) {
+            try {
+                // 纯数字输入为大淘客单品号（SDK id 字段通道）；淘宝num_iid超Integer范围，回落goodsId维持现状
+                request.setId(Integer.parseInt(goodsId));
+            } catch (NumberFormatException ignored) {
+                request.setGoodsId(goodsId);
+            }
+        } else {
+            request.setGoodsId(goodsId);
+        }
         return DtkResponseConverter.toFullJsonObject(dtkApiClient.execute(request));
     }
 
@@ -152,7 +161,7 @@ public class DataokeService {
             if (StringUtils.isBlank(goodsSign)) {
                 JSONObject res = new JSONObject();
                 res.put("code", 400);
-                res.put("msg", "商品未收录大淘客商品库，无法生成下单口令");
+                res.put("msg", "暂无法定位该商品的转链信息（数字商品ID暂不支持转链），请重试");
                 res.put("success", false);
                 return res;
             }
@@ -166,11 +175,14 @@ public class DataokeService {
     }
 
     /**
-     * 数字淘宝id → 大淘客加密goodsSign（收录品才换得到；未收录/异常返回null）
+     * 数字id → 大淘客加密goodsSign（仅走 goodsId 通道）：淘宝num_iid 无可用映射端点，换不到返回null。
+     * 刻意不启用 id 通道——用户输入的短数字id可能是老淘宝num_iid，撞号大淘客单品号会产出错品下单口令（真金错归因）
      */
     private String resolveGoodsSignByNumericId(String numericGoodsId) {
         try {
-            JSONObject detail = goodsDetail(numericGoodsId);
+            DtkGoodsDetailsRequest request = new DtkGoodsDetailsRequest();
+            request.setGoodsId(numericGoodsId);
+            JSONObject detail = DtkResponseConverter.toFullJsonObject(dtkApiClient.execute(request));
             if (detail == null || detail.getIntValue("code") != 0) {
                 return null;
             }
